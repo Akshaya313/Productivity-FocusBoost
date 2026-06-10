@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useProductivityStore } from "@/store/useProductivityStore";
+import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
 import {
   Compass,
   CheckSquare,
@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Flame,
   Award,
-  Sparkles
+  Sparkles,
+  LogIn
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,7 @@ import AmbientSoundPlayer from "./ambient-sound";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { userName, level, xp, streak, tasks, timerHistory } = useProductivityStore();
+  const { userName, level, xp, xpConfig, streak, tasks, timerHistory } = useProductivityStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const menuItems = [
@@ -40,11 +41,7 @@ export default function Sidebar() {
     { name: "Settings", href: "/dashboard/settings", icon: <Settings size={18} /> }
   ];
 
-  const levelXPNeeded = Math.pow(level, 2) * 100;
-  const currentLevelXPStart = Math.pow(level - 1, 2) * 100;
-  const xpInCurrentLevel = xp - currentLevelXPStart;
-  const xpNeededForNextLevel = levelXPNeeded - currentLevelXPStart;
-  const levelPercentage = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
+  const { xpInCurrentLevel, xpNeededForNextLevel, levelPercentage } = getLevelInfo(xp, xpConfig);
 
   const activeTasksCount = tasks.filter((t) => t.status !== "done").length;
 
@@ -62,7 +59,7 @@ export default function Sidebar() {
             transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
             className="w-7 h-7 rounded-lg bg-accent-gradient flex items-center justify-center text-white font-black text-sm border border-white/20 border-accent-glow"
           >
-            A
+            F
           </motion.div>
           {!isCollapsed && (
             <motion.span
@@ -71,7 +68,7 @@ export default function Sidebar() {
               exit={{ opacity: 0 }}
               className="font-bold text-sm tracking-widest text-gradient"
             >
-              ANTIGRAVITY
+              FOCUSBOOST
             </motion.span>
           )}
         </Link>
@@ -169,6 +166,26 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Login / Signup shortcut */}
+      <div className="px-3 pb-3 shrink-0">
+        <Link href="/login">
+          <div className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer group",
+            "text-[var(--text-muted)] hover:bg-white/5 hover:text-white"
+          )}>
+            <LogIn size={15} className="text-[var(--accent)] group-hover:scale-110 transition-transform shrink-0" />
+            {!isCollapsed && (
+              <span className="truncate">Switch Account / Login</span>
+            )}
+            {isCollapsed && (
+              <div className="absolute left-16 px-2.5 py-1.5 rounded bg-black/90 border border-white/10 text-white text-[11px] font-medium hidden group-hover:block whitespace-nowrap shadow-2xl z-50">
+                Switch Account / Login
+              </div>
+            )}
+          </div>
+        </Link>
       </div>
     </motion.aside>
   );

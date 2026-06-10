@@ -1,4 +1,4 @@
-Build a modern, production-quality productivity web app called **AntiGravity** — not a basic “vibe coded” landing page, but a polished, scalable SaaS-style application with thoughtful UX, clean architecture, smooth animations, and real usability.
+Build a modern, production-quality productivity web app called **FlowZone** — not a basic “vibe coded” landing page, but a polished, scalable SaaS-style application with thoughtful UX, clean architecture, smooth animations, and real usability.
 
 Design aesthetic:
 
@@ -113,52 +113,38 @@ Core features:
 
 10. Authentication & Data
 
-* Login/signup UI
-* OAuth placeholders (Google/GitHub)
-* Local storage persistence
-* Backend-ready architecture
-* Modular component structure
-* Proper state management
-* API-ready design
+* Functional Email & Password Sign Up and Login powered by **Firebase Authentication**
+* Beautiful OAuth mock portals (Google & GitHub)
+* Real-time **Firebase Firestore** cloud synchronization for all tasks, habits, goals, notes, stats, and focus records
+* Resilient offline-first persistence with automatic, zero-config local storage fallbacks if Firebase keys are unconfigured
+* Modular, reactive state store with automated sync queues
 
 11. Suggested Tech Stack
     Frontend:
 
-* Next.js
+* Next.js 16 (App Router)
 * TypeScript
-* Tailwind CSS
-* Framer Motion
-* shadcn/ui
+* Tailwind CSS / Vanilla CSS HSL design system
+* Framer Motion animations
+* Lucide Icons
 
 State & Data:
 
-* Zustand or Redux Toolkit
-* React Query/TanStack Query
+* Zustand (with custom state syncing hooks)
+* Firebase Client SDK (Auth, Firestore)
 
 Charts:
 
 * Recharts
 
-Backend-ready:
+12. Fully Implemented Premium Features
 
-* Supabase/Firebase placeholders
-
-12. Additional Premium Features
-
-* AI productivity assistant panel
-* Focus insights generated from behavior
-* Website blocker placeholder
-* Spotify integration placeholder
-* Mood tracker
-* Energy tracker
-* Smart morning/evening routines
-* Deep work statistics
-* Workspace customization
-* Widget customization
-* Multi-device sync placeholder
-* Offline mode support
-* Export productivity reports
-* Team collaboration mode placeholder
+* **AI Productivity Assistant Drawer**: Contextual chat panel providing behavioral suggestions and personalized workflow coaching.
+* **Interactive AI Task Breakdown**: Fully animated subtask generators that break down complex task descriptions in one click.
+* **Spotify Focus Audio Center**: Integrated player inside the timer page hosting curated study channels, synced seamlessly with ambient sound machines and sliders.
+* **Community Focus Leaderboard**: Live gamified rank boards fetching high-performing focus users from Firestore database with custom tiers.
+* **Mood & Energy tracker**: Interactive dashboard logging with dynamic color cards tracking correlation between mental state and productivity.
+* **Deep Work Statistics**: Heatmaps, focus-to-energy trend charts, and consistency metrics.
 
 13. Pages to Include
 

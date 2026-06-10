@@ -30,9 +30,9 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-accent-gradient flex items-center justify-center font-black border border-white/20 text-white shadow-lg shadow-purple-500/10">
-              A
+              F
             </div>
-            <span className="font-bold text-sm tracking-widest text-gradient">ANTIGRAVITY</span>
+            <span className="font-bold text-sm tracking-widest text-gradient">FOCUSBOOST</span>
           </Link>
 
           <div className="flex items-center gap-4">
@@ -61,7 +61,7 @@ export default function Home() {
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/5 text-purple-300 text-[10px] font-bold uppercase tracking-widest"
           >
             <Sparkles size={12} className="animate-spin text-purple-400" />
-            <span>Introducing AntiGravity v1.0</span>
+            <span>Introducing FocusBoost v1.0</span>
           </motion.div>
 
           {/* Heading */}
@@ -161,7 +161,7 @@ export default function Home() {
             <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
             <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
-            <span className="text-[10px] text-gray-500 font-mono mx-auto">https://antigravity.saas/dashboard</span>
+            <span className="text-[10px] text-gray-500 font-mono mx-auto">https://focusboost.app/dashboard</span>
           </div>
           <div className="h-64 sm:h-96 w-full bg-[#0d0a1b] flex flex-col items-center justify-center gap-4 relative overflow-hidden select-none p-6 text-center">
             {/* Mock Dashboard */}
@@ -192,7 +192,7 @@ export default function Home() {
       <footer className="border-t border-white/5 bg-black/40 py-8 select-none relative z-10 text-center">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white font-mono">AntiGravity</span>
+            <span className="font-bold text-white font-mono">FocusBoost</span>
             <span>&copy; {new Date().getFullYear()} SaaS Productivity OS. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-4">

@@ -1,19 +1,15 @@
 "use client";
 
 import React from "react";
-import { useProductivityStore } from "@/store/useProductivityStore";
+import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
 import { Award, Trophy, Flame, Sparkles, CheckSquare, Zap, Clock, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export default function GamifiedProfile() {
-  const { userName, level, xp, streak, achievements, tasks, timerHistory } = useProductivityStore();
+  const { userName, level, xp, xpConfig, streak, achievements, tasks, timerHistory } = useProductivityStore();
 
-  const levelXPNeeded = Math.pow(level, 2) * 100;
-  const currentLevelXPStart = Math.pow(level - 1, 2) * 100;
-  const xpInCurrentLevel = xp - currentLevelXPStart;
-  const xpNeededForNextLevel = levelXPNeeded - currentLevelXPStart;
-  const levelPercentage = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
+  const { xpInCurrentLevel, xpNeededForNextLevel, levelPercentage } = getLevelInfo(xp, xpConfig);
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "done").length;

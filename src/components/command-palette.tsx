@@ -248,7 +248,7 @@ export default function CommandPalette() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Sparkles size={10} className="text-[var(--accent)]" />
-                  <span>AntiGravity Flow OS</span>
+                  <span>FocusBoost</span>
                 </div>
               </div>
             </motion.div>

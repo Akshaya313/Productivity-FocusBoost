@@ -46,6 +46,7 @@ export default function SmartTasks() {
   const [newPriority, setNewPriority] = useState<Task["priority"]>("medium");
   const [newDueDate, setNewDueDate] = useState(new Date().toISOString().split("T")[0]);
   const [newTagInput, setNewTagInput] = useState("");
+  const [newXpReward, setNewXpReward] = useState<number | "">(50);
 
   // Edit task details state
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -85,7 +86,8 @@ export default function SmartTasks() {
       dueDate: newDueDate,
       tags: tags.length > 0 ? tags : ["Task"],
       subtasks: [],
-      recurrence: "none"
+      recurrence: "none",
+      xpReward: newXpReward !== "" ? Number(newXpReward) : undefined
     });
 
     // Reset inputs
@@ -94,6 +96,7 @@ export default function SmartTasks() {
     setNewPriority("medium");
     setNewDueDate(new Date().toISOString().split("T")[0]);
     setNewTagInput("");
+    setNewXpReward(50);
     setIsCreateOpen(false);
   };
 
@@ -283,6 +286,9 @@ export default function SmartTasks() {
                             <Calendar size={8} />
                             {task.dueDate}
                           </span>
+                          <span className="bg-purple-500/10 text-purple-300 border border-purple-500/15 px-1.5 py-0.5 rounded font-bold font-mono">
+                            +{task.xpReward ?? 50} XP
+                          </span>
                         </div>
 
                         {/* Subtask micro meter */}
@@ -371,6 +377,9 @@ export default function SmartTasks() {
               </div>
 
               <div className="flex items-center gap-3 text-[10px]">
+                <span className="bg-purple-500/10 text-purple-300 border border-purple-500/15 px-2 py-0.5 rounded font-bold font-mono">
+                  +{task.xpReward ?? 50} XP
+                </span>
                 <span className={cn(
                   "px-2 py-0.5 rounded font-bold uppercase",
                   task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-yellow-500/10 text-yellow-400" : "bg-green-500/10 text-green-400"
@@ -457,6 +466,33 @@ export default function SmartTasks() {
                     </select>
                   </div>
                 </div>
+                <div className="flex flex-col gap-1.5 bg-white/2 border border-white/5 p-3 rounded-xl">
+                  <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Custom XP Reward</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {([25, 50, 100, 200] as const).map((xpVal) => (
+                      <button
+                        key={xpVal}
+                        type="button"
+                        onClick={() => setNewXpReward(xpVal)}
+                        className={cn(
+                          "py-1 rounded-lg text-[10px] font-mono font-bold border transition-colors",
+                          newXpReward === xpVal
+                            ? "bg-accent-gradient border-white/25 text-white"
+                            : "bg-white/5 border-transparent text-[var(--text-muted)] hover:text-white"
+                        )}
+                      >
+                        {xpVal}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    placeholder="Or enter custom XP..."
+                    value={newXpReward === "" ? "" : newXpReward}
+                    onChange={(e) => setNewXpReward(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Tags (comma-separated)</label>
                   <input
@@ -522,7 +558,7 @@ export default function SmartTasks() {
               </div>
 
               {/* Quick actions status move options */}
-              <div className="grid grid-cols-2 gap-3 mt-4 text-xs font-semibold">
+              <div className="grid grid-cols-3 gap-3 mt-4 text-xs font-semibold">
                 <div className="p-3 bg-white/5 border border-white/5 rounded-xl flex flex-col gap-1">
                   <span className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Priority Status</span>
                   <span className="text-white capitalize font-bold">{activeTask.priority} Priority</span>
@@ -530,6 +566,10 @@ export default function SmartTasks() {
                 <div className="p-3 bg-white/5 border border-white/5 rounded-xl flex flex-col gap-1">
                   <span className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Board Column</span>
                   <span className="text-white capitalize font-bold">{activeTask.status.replace("_", " ")}</span>
+                </div>
+                <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex flex-col gap-1">
+                  <span className="text-[9px] uppercase tracking-wider text-purple-400 font-bold">XP Awarded</span>
+                  <span className="text-purple-300 font-bold font-mono">+{activeTask.xpReward ?? 50} XP</span>
                 </div>
               </div>
 

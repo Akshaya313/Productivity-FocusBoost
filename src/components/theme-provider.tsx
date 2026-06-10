@@ -41,6 +41,10 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme, mounted]);
 
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   // Listen to custom store alert triggers
   useEffect(() => {
     if (!mounted) return;
@@ -77,10 +81,6 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       window.removeEventListener("achievement-unlocked", handleAchievement);
     };
   }, [mounted]);
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
 
   // Prevent SSR hydration mismatch
   if (!mounted) {

@@ -1,5 +1,36 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { auth, db, SimulatedUser } from "@/lib/firebase";
+
+export interface XPConfig {
+  taskCompleteXP: number;
+  subtaskCompleteXP: number;
+  habitCompleteXP: number;
+  weeklyGoalCompleteXP: number;
+  focusSessionCompleteXP: number;
+  xpPerLevel: number;
+  levelingCurve: "linear" | "exponential";
+}
+
+export function getLevelInfo(xp: number, xpConfig?: XPConfig) {
+  const xpPerLevel = xpConfig?.xpPerLevel ?? 100;
+  const curve = xpConfig?.levelingCurve ?? "linear";
+  if (curve === "exponential") {
+    const level = Math.floor(Math.sqrt(xp / xpPerLevel));
+    const currentLevelXPStart = Math.pow(level, 2) * xpPerLevel;
+    const levelXPNeeded = Math.pow(level + 1, 2) * xpPerLevel;
+    const xpInCurrentLevel = xp - currentLevelXPStart;
+    const xpNeededForNextLevel = levelXPNeeded - currentLevelXPStart;
+    const levelPercentage = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
+    return { level, xpInCurrentLevel, xpNeededForNextLevel, levelPercentage };
+  } else {
+    const level = Math.floor(xp / xpPerLevel);
+    const xpInCurrentLevel = xp % xpPerLevel;
+    const xpNeededForNextLevel = xpPerLevel;
+    const levelPercentage = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
+    return { level, xpInCurrentLevel, xpNeededForNextLevel, levelPercentage };
+  }
+}
 
 export interface Subtask {
   id: string;
@@ -18,6 +49,7 @@ export interface Task {
   subtasks: Subtask[];
   recurrence: "none" | "daily" | "weekly";
   completedAt: string | null;
+  xpReward?: number;
 }
 
 export interface Habit {
@@ -99,12 +131,32 @@ interface ProductivityState {
   // Configuration
   theme: ThemeType;
   cursorEffect: boolean;
+  xpConfig: XPConfig;
+
+  // Cloud Sync & Auth States
+  user: SimulatedUser | null;
+  authLoading: boolean;
+  isSyncing: boolean;
+  syncError: string | null;
+  lastSyncedAt: string | null;
+
+  // Actions - Auth & Sync
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (email: string, name: string) => Promise<void>;
+  loginWithGithub: (email: string, name: string) => Promise<void>;
+  logoutUser: () => Promise<void>;
+  syncDataToCloud: () => Promise<void>;
+  loadCloudData: (uid: string) => Promise<void>;
 
   // Actions - Gamification
   setUserName: (name: string) => void;
   addXP: (amount: number) => void;
   checkStreak: () => void;
   unlockAchievement: (id: string) => void;
+  updateXPConfig: (config: Partial<XPConfig>) => void;
+  setCustomProgress: (level: number, xp: number) => void;
+  loadDemoData: () => void;
 
   // Actions - Tasks
   addTask: (task: Omit<Task, "id" | "completedAt">) => void;
@@ -129,7 +181,7 @@ interface ProductivityState {
   resetTimer: () => void;
   tickTimer: () => void;
   setPresets: (presets: { focus: number; short_break: number; long_break: number }) => void;
-  setAmbientSound: (sound: ProductivityState["ambientSound"]) => void;
+  setAmbientSound: (sound: "none" | "rain" | "cafe" | "white_noise" | "ocean" | "forest") => void;
   setAudioVolume: (volume: number) => void;
   setDeepFocus: (isDeep: boolean) => void;
   logSession: (session: Omit<FocusSession, "id">) => void;
@@ -158,7 +210,7 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
 const INITIAL_TASKS: Task[] = [
   {
     id: "task-1",
-    title: "Configure AntiGravity visual workspace layouts",
+    title: "Configure FocusBoost visual workspace layouts",
     description: "Structure layout, CSS properties, variables and glassmorphism elements.",
     status: "in_progress",
     priority: "high",
@@ -218,8 +270,8 @@ const INITIAL_GOALS: WeeklyGoal[] = [
 const INITIAL_NOTES: Note[] = [
   {
     id: "note-1",
-    title: "🚀 AntiGravity Core Concepts & Design Spec",
-    content: `# AntiGravity Productivity OS
+    title: "🚀 FocusBoost Core Concepts & Design Spec",
+    content: `# FocusBoost Productivity OS
 
 Welcome to your bespoke workspace. This system relies on continuous tracking:
 - **XP gamification mechanisms** keeping focus motivating.
@@ -252,15 +304,15 @@ Welcome to your bespoke workspace. This system relies on continuous tracking:
 export const useProductivityStore = create<ProductivityState>()(
   persist(
     (set, get) => ({
-      userName: "Creative Innovator",
+      userName: "Flow User",
       xp: 0,
-      level: 1,
-      streak: 3,
+      level: 0,
+      streak: 0,
       lastActiveDate: new Date().toISOString().split("T")[0],
-      achievements: INITIAL_ACHIEVEMENTS,
-      tasks: INITIAL_TASKS,
-      habits: INITIAL_HABITS,
-      weeklyGoals: INITIAL_GOALS,
+      achievements: INITIAL_ACHIEVEMENTS.map(a => ({ ...a, unlocked: false, unlockedAt: null })),
+      tasks: [],
+      habits: [],
+      weeklyGoals: [],
       timerMode: "focus",
       duration: 25 * 60,
       isRunning: false,
@@ -273,18 +325,187 @@ export const useProductivityStore = create<ProductivityState>()(
       ambientSound: "none",
       audioVolume: 0.5,
       timerHistory: [],
-      notes: INITIAL_NOTES,
-      activeNoteId: "note-1",
+      notes: [],
+      activeNoteId: null,
       theme: "midnight",
       cursorEffect: true,
+      xpConfig: {
+        taskCompleteXP: 50,
+        subtaskCompleteXP: 15,
+        habitCompleteXP: 25,
+        weeklyGoalCompleteXP: 30,
+        focusSessionCompleteXP: 100,
+        xpPerLevel: 100,
+        levelingCurve: "linear"
+      },
+      user: null,
+      authLoading: false,
+      isSyncing: false,
+      syncError: null,
+      lastSyncedAt: null,
+
+      // Actions - Auth & Sync
+      signUpWithEmail: async (email, password, name) => {
+        set({ authLoading: true, syncError: null });
+        try {
+          const { user } = await auth.createUserWithEmailAndPassword(email, password, name);
+          set({ user, authLoading: false, userName: name });
+          // Upload initial state to their new cloud profile
+          await get().syncDataToCloud();
+        } catch (err: any) {
+          set({ authLoading: false, syncError: err.message || "Failed to sign up" });
+          throw err;
+        }
+      },
+
+      loginWithEmail: async (email, password) => {
+        set({ authLoading: true, syncError: null });
+        try {
+          const { user } = await auth.signInWithEmailAndPassword(email, password);
+          set({ user, authLoading: false });
+          // Fetch their cloud data and restore state
+          await get().loadCloudData(user.uid);
+        } catch (err: any) {
+          set({ authLoading: false, syncError: err.message || "Failed to log in" });
+          throw err;
+        }
+      },
+
+      loginWithGoogle: async (email, name) => {
+        set({ authLoading: true, syncError: null });
+        try {
+          const { user } = await auth.signInWithGoogle(email, name);
+          set({ user, authLoading: false, userName: name });
+          await get().loadCloudData(user.uid);
+        } catch (err: any) {
+          set({ authLoading: false, syncError: err.message || "Failed to log in with Google" });
+          throw err;
+        }
+      },
+
+      loginWithGithub: async (email, name) => {
+        set({ authLoading: true, syncError: null });
+        try {
+          const { user } = await auth.signInWithGithub(email, name);
+          set({ user, authLoading: false, userName: name });
+          await get().loadCloudData(user.uid);
+        } catch (err: any) {
+          set({ authLoading: false, syncError: err.message || "Failed to log in with GitHub" });
+          throw err;
+        }
+      },
+
+      logoutUser: async () => {
+        set({ authLoading: true });
+        try {
+          await auth.signOut();
+          set({
+            user: null,
+            authLoading: false,
+            // Reset to defaults
+            userName: "Flow User",
+            xp: 0,
+            level: 0,
+            streak: 0,
+            tasks: [],
+            habits: [],
+            weeklyGoals: [],
+            notes: [],
+            activeNoteId: null,
+            timerHistory: [],
+            xpConfig: {
+              taskCompleteXP: 50,
+              subtaskCompleteXP: 15,
+              habitCompleteXP: 25,
+              weeklyGoalCompleteXP: 30,
+              focusSessionCompleteXP: 100,
+              xpPerLevel: 100,
+              levelingCurve: "linear"
+            }
+          });
+        } catch (err) {
+          set({ authLoading: false });
+        }
+      },
+
+      syncDataToCloud: async () => {
+        const { user } = get();
+        if (!user) return;
+        set({ isSyncing: true, syncError: null });
+        try {
+          const payload = {
+            userName: get().userName,
+            xp: get().xp,
+            level: get().level,
+            streak: get().streak,
+            tasks: get().tasks,
+            habits: get().habits,
+            weeklyGoals: get().weeklyGoals,
+            timerHistory: get().timerHistory,
+            notes: get().notes,
+            xpConfig: get().xpConfig
+          };
+          await db.setDoc("users", user.uid, payload);
+          set({ isSyncing: false, lastSyncedAt: new Date().toISOString() });
+          
+          // Also sync to leaderboard
+          const weeklyHrs = get().timerHistory
+            .filter((s) => s.mode === "focus" && (Date.now() - new Date(s.timestamp).getTime()) < 7 * 24 * 3600 * 1000)
+            .reduce((acc, curr) => acc + curr.duration / 3600, 0);
+          
+          await db.setDoc("leaderboard", user.uid, {
+            uid: user.uid,
+            userName: get().userName,
+            level: get().level,
+            xp: get().xp,
+            weeklyHours: weeklyHrs,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (err: any) {
+          set({ isSyncing: false, syncError: err.message || "Sync failed" });
+        }
+      },
+
+      loadCloudData: async (uid) => {
+        set({ isSyncing: true, syncError: null });
+        try {
+          const res = await db.getDoc("users", uid);
+          if (res.exists) {
+            const data = res.data();
+            set({
+              userName: data.userName || get().userName,
+              xp: data.xp !== undefined ? data.xp : get().xp,
+              level: data.level !== undefined ? data.level : get().level,
+              streak: data.streak !== undefined ? data.streak : get().streak,
+              tasks: data.tasks || [],
+              habits: data.habits || [],
+              weeklyGoals: data.weeklyGoals || [],
+              timerHistory: data.timerHistory || [],
+              notes: data.notes || [],
+              xpConfig: data.xpConfig || get().xpConfig,
+              isSyncing: false,
+              lastSyncedAt: new Date().toISOString()
+            });
+          } else {
+            // First time cloud user: save local state as cloud document
+            set({ isSyncing: false });
+            await get().syncDataToCloud();
+          }
+        } catch (err: any) {
+          set({ isSyncing: false, syncError: err.message || "Failed to load cloud data" });
+        }
+      },
 
       // Gamification Actions
-      setUserName: (userName) => set({ userName }),
+      setUserName: (userName) => {
+        set({ userName });
+        get().syncDataToCloud();
+      },
       
       addXP: (amount) => {
         const currentXP = get().xp + amount;
-        // Level formula: floor(sqrt(xp / 100)) + 1
-        const newLevel = Math.floor(Math.sqrt(currentXP / 100)) + 1;
+        const xpConfig = get().xpConfig;
+        const { level: newLevel } = getLevelInfo(currentXP, xpConfig);
         const currentLevel = get().level;
         
         let levelUpTriggered = false;
@@ -305,6 +526,38 @@ export const useProductivityStore = create<ProductivityState>()(
         if (levelUpTriggered && typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("level-up", { detail: { level: newLevel } }));
         }
+      },
+
+      updateXPConfig: (config) => {
+        set((state) => ({
+          xpConfig: { ...state.xpConfig, ...config }
+        }));
+        // Recalculate level immediately
+        const xp = get().xp;
+        const xpConfig = get().xpConfig;
+        const { level: newLevel } = getLevelInfo(xp, xpConfig);
+        set({ level: newLevel });
+        get().syncDataToCloud();
+      },
+
+      setCustomProgress: (customLevel, customXP) => {
+        set({
+          level: customLevel,
+          xp: customXP
+        });
+        get().syncDataToCloud();
+      },
+
+      loadDemoData: () => {
+        set({
+          tasks: INITIAL_TASKS,
+          habits: INITIAL_HABITS,
+          weeklyGoals: INITIAL_GOALS,
+          notes: INITIAL_NOTES,
+          activeNoteId: "note-1",
+          streak: 3
+        });
+        get().syncDataToCloud();
       },
 
       checkStreak: () => {
@@ -358,6 +611,7 @@ export const useProductivityStore = create<ProductivityState>()(
         set((state) => ({
           tasks: [newTask, ...state.tasks]
         }));
+        get().syncDataToCloud();
       },
 
       updateTask: (id, updates) => {
@@ -373,7 +627,8 @@ export const useProductivityStore = create<ProductivityState>()(
                 completedAt = new Date().toISOString();
                 // Add XP!
                 setTimeout(() => {
-                  get().addXP(50);
+                  const reward = task.xpReward !== undefined ? task.xpReward : (get().xpConfig?.taskCompleteXP ?? 50);
+                  get().addXP(reward);
                   get().unlockAchievement("first_task");
                 }, 0);
               } else if (!isCompletedNow && wasCompleted) {
@@ -386,12 +641,14 @@ export const useProductivityStore = create<ProductivityState>()(
           });
           return { tasks: updatedTasks };
         });
+        get().syncDataToCloud();
       },
 
       deleteTask: (id) => {
         set((state) => ({
           tasks: state.tasks.filter((t) => t.id !== id)
         }));
+        get().syncDataToCloud();
       },
 
       toggleSubtask: (taskId, subtaskId) => {
@@ -402,21 +659,21 @@ export const useProductivityStore = create<ProductivityState>()(
                 if (sub.id === subtaskId) {
                   const nowCompleted = !sub.completed;
                   if (nowCompleted) {
-                    setTimeout(() => get().addXP(15), 0);
+                    const reward = get().xpConfig?.subtaskCompleteXP ?? 15;
+                    setTimeout(() => get().addXP(reward), 0);
                   }
                   return { ...sub, completed: nowCompleted };
                 }
                 return sub;
               });
               
-              // Automatically mark task complete if all subtasks are complete and it wasn't done yet?
-              // Let's keep it manual, but update state
               return { ...task, subtasks: updatedSubtasks };
             }
             return task;
           });
           return { tasks: updatedTasks };
         });
+        get().syncDataToCloud();
       },
 
       addSubtask: (taskId, title) => {
@@ -433,6 +690,7 @@ export const useProductivityStore = create<ProductivityState>()(
             return task;
           })
         }));
+        get().syncDataToCloud();
       },
 
       moveTask: (id, status) => {
@@ -451,6 +709,7 @@ export const useProductivityStore = create<ProductivityState>()(
         set((state) => ({
           habits: [...state.habits, newHabit]
         }));
+        get().syncDataToCloud();
       },
 
       toggleHabit: (id, dateStr) => {
@@ -470,7 +729,8 @@ export const useProductivityStore = create<ProductivityState>()(
                 
                 // Add XP!
                 setTimeout(() => {
-                  get().addXP(25);
+                  const reward = get().xpConfig?.habitCompleteXP ?? 25;
+                  get().addXP(reward);
                 }, 0);
 
                 // calculate streak
@@ -497,12 +757,14 @@ export const useProductivityStore = create<ProductivityState>()(
           });
           return { habits: updatedHabits };
         });
+        get().syncDataToCloud();
       },
 
       deleteHabit: (id) => {
         set((state) => ({
           habits: state.habits.filter((h) => h.id !== id)
         }));
+        get().syncDataToCloud();
       },
 
       addWeeklyGoal: (title) => {
@@ -514,6 +776,7 @@ export const useProductivityStore = create<ProductivityState>()(
         set((state) => ({
           weeklyGoals: [...state.weeklyGoals, newGoal]
         }));
+        get().syncDataToCloud();
       },
 
       toggleWeeklyGoal: (id) => {
@@ -522,7 +785,8 @@ export const useProductivityStore = create<ProductivityState>()(
             if (g.id === id) {
               const nextVal = !g.completed;
               if (nextVal) {
-                setTimeout(() => get().addXP(30), 0);
+                const reward = get().xpConfig?.weeklyGoalCompleteXP ?? 30;
+                setTimeout(() => get().addXP(reward), 0);
               }
               return { ...g, completed: nextVal };
             }
@@ -530,12 +794,14 @@ export const useProductivityStore = create<ProductivityState>()(
           });
           return { weeklyGoals: updated };
         });
+        get().syncDataToCloud();
       },
 
       deleteWeeklyGoal: (id) => {
         set((state) => ({
           weeklyGoals: state.weeklyGoals.filter((g) => g.id !== id)
         }));
+        get().syncDataToCloud();
       },
 
       // Pomodoro Timer Actions
@@ -587,7 +853,8 @@ export const useProductivityStore = create<ProductivityState>()(
           if (timerMode === "focus") {
             // Reward focus XP
             setTimeout(() => {
-              get().addXP(100);
+              const reward = get().xpConfig?.focusSessionCompleteXP ?? 100;
+              get().addXP(reward);
               if (get().isDeepFocus) {
                 get().unlockAchievement("deep_dive");
               }
@@ -636,6 +903,7 @@ export const useProductivityStore = create<ProductivityState>()(
         set((state) => ({
           timerHistory: [newSession, ...state.timerHistory]
         }));
+        get().syncDataToCloud();
       },
 
       // Notes Actions
@@ -652,6 +920,7 @@ export const useProductivityStore = create<ProductivityState>()(
           notes: [newNote, ...state.notes],
           activeNoteId: newNote.id
         }));
+        get().syncDataToCloud();
       },
 
       updateNote: (id, title, content, tags) => {
@@ -669,6 +938,7 @@ export const useProductivityStore = create<ProductivityState>()(
             return note;
           })
         }));
+        get().syncDataToCloud();
       },
 
       deleteNote: (id) => {
@@ -683,6 +953,7 @@ export const useProductivityStore = create<ProductivityState>()(
             activeNoteId: nextActiveId
           };
         });
+        get().syncDataToCloud();
       },
 
       togglePinNote: (id) => {
@@ -694,25 +965,29 @@ export const useProductivityStore = create<ProductivityState>()(
             return note;
           })
         }));
+        get().syncDataToCloud();
       },
 
       setActiveNoteId: (activeNoteId) => set({ activeNoteId }),
 
       // Global Config
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme });
+        get().syncDataToCloud();
+      },
       setCursorEffect: (cursorEffect) => set({ cursorEffect }),
 
       resetAllData: () => {
         set({
-          userName: "Creative Innovator",
+          userName: "Flow User",
           xp: 0,
-          level: 1,
+          level: 0,
           streak: 0,
           lastActiveDate: new Date().toISOString().split("T")[0],
           achievements: INITIAL_ACHIEVEMENTS.map(a => ({ ...a, unlocked: false, unlockedAt: null })),
-          tasks: INITIAL_TASKS,
-          habits: INITIAL_HABITS,
-          weeklyGoals: INITIAL_GOALS,
+          tasks: [],
+          habits: [],
+          weeklyGoals: [],
           timerMode: "focus",
           duration: 25 * 60,
           isRunning: false,
@@ -721,11 +996,21 @@ export const useProductivityStore = create<ProductivityState>()(
           ambientSound: "none",
           audioVolume: 0.5,
           timerHistory: [],
-          notes: INITIAL_NOTES,
-          activeNoteId: "note-1",
+          notes: [],
+          activeNoteId: null,
           theme: "midnight",
-          cursorEffect: true
+          cursorEffect: true,
+          xpConfig: {
+            taskCompleteXP: 50,
+            subtaskCompleteXP: 15,
+            habitCompleteXP: 25,
+            weeklyGoalCompleteXP: 30,
+            focusSessionCompleteXP: 100,
+            xpPerLevel: 100,
+            levelingCurve: "linear"
+          }
         });
+        get().syncDataToCloud();
       }
     }),
     {
@@ -747,7 +1032,8 @@ export const useProductivityStore = create<ProductivityState>()(
         notes: state.notes,
         activeNoteId: state.activeNoteId,
         theme: state.theme,
-        cursorEffect: state.cursorEffect
+        cursorEffect: state.cursorEffect,
+        xpConfig: state.xpConfig
       })
     }
   )

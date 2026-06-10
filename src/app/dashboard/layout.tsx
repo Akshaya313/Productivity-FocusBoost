@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
-import { useProductivityStore } from "@/store/useProductivityStore";
+import AIAssistant from "@/components/ai-assistant";
+import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
 import { Sparkles, Trophy, Plus, Settings, Compass, Search, Calendar, CheckSquare, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -10,16 +11,12 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { userName, level, xp, isDeepFocus, addTask } = useProductivityStore();
+  const { userName, level, xp, xpConfig, isDeepFocus, addTask } = useProductivityStore();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high">("medium");
 
-  const levelXPNeeded = Math.pow(level, 2) * 100;
-  const currentLevelXPStart = Math.pow(level - 1, 2) * 100;
-  const xpInCurrentLevel = xp - currentLevelXPStart;
-  const xpNeededForNextLevel = levelXPNeeded - currentLevelXPStart;
-  const levelPercentage = Math.min(100, Math.max(0, (xpInCurrentLevel / xpNeededForNextLevel) * 100));
+  const { xpInCurrentLevel, xpNeededForNextLevel, levelPercentage } = getLevelInfo(xp, xpConfig);
 
   const handleQuickAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-16 border-b border-white/5 bg-black/10 backdrop-blur-md px-6 flex items-center justify-between shrink-0 select-none z-20">
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              AntiGravity OS
+              FocusBoost
             </span>
             <span className="text-white/10 text-xs">/</span>
             <div className="flex items-center gap-1.5 text-xs text-white bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
@@ -113,6 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto no-scrollbar relative p-6">
           {children}
         </main>
+        <AIAssistant />
       </div>
 
       {/* Quick Add Modal */}

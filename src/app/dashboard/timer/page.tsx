@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { useProductivityStore } from "@/store/useProductivityStore";
-import { Play, Pause, RotateCcw, Volume2, Sparkles, Monitor, Maximize2, Minimize2, Eye, ShieldAlert, Award, FileMusic, Settings } from "lucide-react";
+import { Play, Pause, RotateCcw, Volume2, Sparkles, Monitor, Maximize2, Minimize2, Eye, ShieldAlert, Award, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AmbientSoundPlayer from "@/components/ambient-sound";
+import SpotifyFocusPlayer from "@/components/spotify-player";
 import { cn } from "@/lib/utils";
 
 export default function AdvancedTimer() {
@@ -324,16 +325,8 @@ export default function AdvancedTimer() {
             </form>
           </div>
 
-          {/* Lo-fi Music Card Placeholder */}
-          <div className="glass-panel p-4 rounded-xl border border-white/5 flex items-center gap-3 bg-indigo-950/10">
-            <div className="p-2.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-              <FileMusic size={18} />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-white block">Focus Lo-Fi Beats</span>
-              <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">Spotify integrated audio placeholder</span>
-            </div>
-          </div>
+          {/* Lo-fi Music Card */}
+          <SpotifyFocusPlayer />
         </div>
       </div>
     </div>

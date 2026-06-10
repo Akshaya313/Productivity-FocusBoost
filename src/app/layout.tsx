@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AntiGravity - Productivity Flow OS",
+  title: "FocusBoost - Productivity Flow OS",
   description: "A modern, premium productivity workspace blending Pomodoro focus flow, drag-and-drop Kanban, live markdown brainstorming, and dynamic streak gamifications.",
 };
 
