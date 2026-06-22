@@ -1,6 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { auth, db, SimulatedUser } from "@/lib/firebase";
+import {
+  type FirebaseUser,
+  signInWithGoogle,
+  signInWithEmail,
+  signUpWithEmail as firebaseSignUpWithEmail,
+  firebaseSignOut,
+  subscribeToAuthState,
+  saveUserData,
+  getUserData,
+} from "@/lib/firebase";
 
 export interface XPConfig {
   taskCompleteXP: number;
@@ -134,7 +143,7 @@ interface ProductivityState {
   xpConfig: XPConfig;
 
   // Cloud Sync & Auth States
-  user: SimulatedUser | null;
+  user: FirebaseUser | null;
   authLoading: boolean;
   isSyncing: boolean;
   syncError: string | null;
@@ -143,9 +152,9 @@ interface ProductivityState {
   // Actions - Auth & Sync
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (email: string, name: string) => Promise<void>;
-  loginWithGithub: (email: string, name: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logoutUser: () => Promise<void>;
+  setUser: (user: FirebaseUser | null) => void;
   syncDataToCloud: () => Promise<void>;
   loadCloudData: (uid: string) => Promise<void>;
 
@@ -345,12 +354,13 @@ export const useProductivityStore = create<ProductivityState>()(
       lastSyncedAt: null,
 
       // Actions - Auth & Sync
+      setUser: (user) => set({ user }),
+
       signUpWithEmail: async (email, password, name) => {
         set({ authLoading: true, syncError: null });
         try {
-          const { user } = await auth.createUserWithEmailAndPassword(email, password, name);
-          set({ user, authLoading: false, userName: name });
-          // Upload initial state to their new cloud profile
+          const firebaseUser = await firebaseSignUpWithEmail(email, password, name);
+          set({ user: firebaseUser, authLoading: false, userName: name });
           await get().syncDataToCloud();
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to sign up" });
@@ -361,36 +371,24 @@ export const useProductivityStore = create<ProductivityState>()(
       loginWithEmail: async (email, password) => {
         set({ authLoading: true, syncError: null });
         try {
-          const { user } = await auth.signInWithEmailAndPassword(email, password);
-          set({ user, authLoading: false });
-          // Fetch their cloud data and restore state
-          await get().loadCloudData(user.uid);
+          const firebaseUser = await signInWithEmail(email, password);
+          set({ user: firebaseUser, authLoading: false });
+          await get().loadCloudData(firebaseUser.uid);
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in" });
           throw err;
         }
       },
 
-      loginWithGoogle: async (email, name) => {
+      loginWithGoogle: async () => {
         set({ authLoading: true, syncError: null });
         try {
-          const { user } = await auth.signInWithGoogle(email, name);
-          set({ user, authLoading: false, userName: name });
-          await get().loadCloudData(user.uid);
+          const firebaseUser = await signInWithGoogle();
+          const displayName = firebaseUser.displayName || "Google User";
+          set({ user: firebaseUser, authLoading: false, userName: displayName });
+          await get().loadCloudData(firebaseUser.uid);
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in with Google" });
-          throw err;
-        }
-      },
-
-      loginWithGithub: async (email, name) => {
-        set({ authLoading: true, syncError: null });
-        try {
-          const { user } = await auth.signInWithGithub(email, name);
-          set({ user, authLoading: false, userName: name });
-          await get().loadCloudData(user.uid);
-        } catch (err: any) {
-          set({ authLoading: false, syncError: err.message || "Failed to log in with GitHub" });
           throw err;
         }
       },
@@ -398,11 +396,10 @@ export const useProductivityStore = create<ProductivityState>()(
       logoutUser: async () => {
         set({ authLoading: true });
         try {
-          await auth.signOut();
+          await firebaseSignOut();
           set({
             user: null,
             authLoading: false,
-            // Reset to defaults
             userName: "Flow User",
             xp: 0,
             level: 0,
@@ -445,22 +442,8 @@ export const useProductivityStore = create<ProductivityState>()(
             notes: get().notes,
             xpConfig: get().xpConfig
           };
-          await db.setDoc("users", user.uid, payload);
+          await saveUserData(user.uid, payload);
           set({ isSyncing: false, lastSyncedAt: new Date().toISOString() });
-          
-          // Also sync to leaderboard
-          const weeklyHrs = get().timerHistory
-            .filter((s) => s.mode === "focus" && (Date.now() - new Date(s.timestamp).getTime()) < 7 * 24 * 3600 * 1000)
-            .reduce((acc, curr) => acc + curr.duration / 3600, 0);
-          
-          await db.setDoc("leaderboard", user.uid, {
-            uid: user.uid,
-            userName: get().userName,
-            level: get().level,
-            xp: get().xp,
-            weeklyHours: weeklyHrs,
-            updatedAt: new Date().toISOString()
-          });
         } catch (err: any) {
           set({ isSyncing: false, syncError: err.message || "Sync failed" });
         }
@@ -469,9 +452,8 @@ export const useProductivityStore = create<ProductivityState>()(
       loadCloudData: async (uid) => {
         set({ isSyncing: true, syncError: null });
         try {
-          const res = await db.getDoc("users", uid);
-          if (res.exists) {
-            const data = res.data();
+          const data = await getUserData(uid);
+          if (data) {
             set({
               userName: data.userName || get().userName,
               xp: data.xp !== undefined ? data.xp : get().xp,
@@ -487,7 +469,7 @@ export const useProductivityStore = create<ProductivityState>()(
               lastSyncedAt: new Date().toISOString()
             });
           } else {
-            // First time cloud user: save local state as cloud document
+            // First-time user: save initial state to Firestore
             set({ isSyncing: false });
             await get().syncDataToCloud();
           }

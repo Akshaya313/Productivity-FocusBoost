@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useProductivityStore } from "@/store/useProductivityStore";
+import { subscribeToAuthState } from "@/lib/firebase";
 import { Sparkles, Trophy, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CommandPalette from "./command-palette";
@@ -14,10 +15,21 @@ interface ToastMessage {
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, cursorEffect, checkStreak } = useProductivityStore();
+  const { theme, cursorEffect, checkStreak, setUser, loadCloudData } = useProductivityStore();
   const [mounted, setMounted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Subscribe to real Firebase auth state — keeps user logged in across refreshes
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthState(async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        await loadCloudData(firebaseUser.uid);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Track mouse coordinates for premium cursor trail
   useEffect(() => {
