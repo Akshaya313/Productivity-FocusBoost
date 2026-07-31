@@ -360,7 +360,21 @@ export const useProductivityStore = create<ProductivityState>()(
         set({ authLoading: true, syncError: null });
         try {
           const firebaseUser = await firebaseSignUpWithEmail(email, password, name);
-          set({ user: firebaseUser, authLoading: false, userName: name });
+          // Initialize clean level 0 state for new user
+          set({
+            user: firebaseUser,
+            authLoading: false,
+            userName: name,
+            xp: 0,
+            level: 0,
+            streak: 0,
+            tasks: [],
+            habits: [],
+            weeklyGoals: [],
+            notes: [],
+            activeNoteId: null,
+            timerHistory: []
+          });
           await get().syncDataToCloud();
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to sign up" });
@@ -373,7 +387,7 @@ export const useProductivityStore = create<ProductivityState>()(
         try {
           const firebaseUser = await signInWithEmail(email, password);
           set({ user: firebaseUser, authLoading: false });
-          await get().loadCloudData(firebaseUser.uid);
+          get().loadCloudData(firebaseUser.uid).catch(() => {});
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in" });
           throw err;
@@ -386,7 +400,7 @@ export const useProductivityStore = create<ProductivityState>()(
           const firebaseUser = await signInWithGoogle();
           const displayName = firebaseUser.displayName || "Google User";
           set({ user: firebaseUser, authLoading: false, userName: displayName });
-          await get().loadCloudData(firebaseUser.uid);
+          get().loadCloudData(firebaseUser.uid).catch(() => {});
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in with Google" });
           throw err;
@@ -455,10 +469,10 @@ export const useProductivityStore = create<ProductivityState>()(
           const data = await getUserData(uid);
           if (data) {
             set({
-              userName: data.userName || get().userName,
-              xp: data.xp !== undefined ? data.xp : get().xp,
-              level: data.level !== undefined ? data.level : get().level,
-              streak: data.streak !== undefined ? data.streak : get().streak,
+              userName: data.userName || get().user?.displayName || get().userName,
+              xp: data.xp !== undefined ? data.xp : 0,
+              level: data.level !== undefined ? data.level : 0,
+              streak: data.streak !== undefined ? data.streak : 0,
               tasks: data.tasks || [],
               habits: data.habits || [],
               weeklyGoals: data.weeklyGoals || [],
@@ -469,8 +483,22 @@ export const useProductivityStore = create<ProductivityState>()(
               lastSyncedAt: new Date().toISOString()
             });
           } else {
-            // First-time user: save initial state to Firestore
-            set({ isSyncing: false });
+            // First-time user logging in: initialize clean account (0 level, 0 XP, empty tasks & notes)
+            const cleanName = get().user?.displayName || get().userName || "Flow User";
+            set({
+              userName: cleanName,
+              xp: 0,
+              level: 0,
+              streak: 0,
+              tasks: [],
+              habits: [],
+              weeklyGoals: [],
+              notes: [],
+              activeNoteId: null,
+              timerHistory: [],
+              isSyncing: false,
+              lastSyncedAt: new Date().toISOString()
+            });
             await get().syncDataToCloud();
           }
         } catch (err: any) {

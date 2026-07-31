@@ -4,10 +4,11 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
 import AIAssistant from "@/components/ai-assistant";
 import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
-import { Sparkles, Trophy, Plus, Settings, Compass, Search, Calendar, CheckSquare, Bell } from "lucide-react";
+import { Sparkles, Trophy, Plus, Settings, Compass, Search, Calendar, CheckSquare, Bell, Cloud, CloudOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isCloudConnected } from "@/lib/firebase";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -67,6 +68,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-1.5 text-xs text-white bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
               <Sparkles size={11} className="text-[var(--accent)]" />
               <span>Workspace Active</span>
+            </div>
+            <span className="text-white/10 text-xs">/</span>
+            <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+              isCloudConnected 
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+            }`}>
+              {isCloudConnected ? (
+                <>
+                  <Cloud size={10} className="animate-pulse" />
+                  <span>Cloud Synced</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff size={10} />
+                  <span>Local Store (Offline)</span>
+                </>
+              )}
             </div>
           </div>
 

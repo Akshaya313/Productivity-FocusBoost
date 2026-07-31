@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
-import { Award, Trophy, Flame, Sparkles, CheckSquare, Zap, Clock, ShieldAlert } from "lucide-react";
+import { Award, Trophy, Flame, Sparkles, CheckSquare, Zap, Clock, ShieldAlert, Cloud, CloudOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { isCloudConnected } from "@/lib/firebase";
 
 export default function GamifiedProfile() {
   const { userName, level, xp, xpConfig, streak, achievements, tasks, timerHistory } = useProductivityStore();
@@ -101,6 +102,33 @@ export default function GamifiedProfile() {
                 <Zap size={11} className="fill-orange-400 animate-pulse" />
                 {streak} days
               </span>
+            </div>
+          </div>
+
+          {/* Cloud Sync Integration Guide */}
+          <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col gap-3 bg-black/10">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)] border-b border-white/5 pb-2">
+              Cloud Configuration
+            </span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                {isCloudConnected ? (
+                  <>
+                    <Cloud className="text-emerald-400 shrink-0 animate-pulse" size={16} />
+                    <span className="text-xs font-bold text-emerald-400">Live Firebase Active</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudOff className="text-amber-400 shrink-0" size={16} />
+                    <span className="text-xs font-bold text-amber-400">Local Offline Fallback</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                {isCloudConnected
+                  ? "Your account and workspace data are fully synchronized in real-time with Google Cloud/Firebase."
+                  : "All data is saved locally in this browser. To save to the cloud, configure your credentials in .env.local and enable Google Provider in the Firebase Console."}
+              </p>
             </div>
           </div>
         </div>
