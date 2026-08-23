@@ -12,6 +12,13 @@ export default function CommandPalette() {
   const router = useRouter();
   const { theme, setTheme, resetAllData, addTask } = useProductivityStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleConfirmReset = () => {
+    setShowResetConfirm(false);
+    resetAllData();
+    showToast("Workspace Reset", "All data erased while preserving your username.", "info");
+  };
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   
@@ -82,8 +89,7 @@ export default function CommandPalette() {
       category: "System",
       icon: <RefreshCw size={16} />,
       action: () => {
-        resetAllData();
-        showToast("Workspace Reset", "All data erased while preserving your username.", "info");
+        setShowResetConfirm(true);
       }
     }
   ];
@@ -249,6 +255,53 @@ export default function CommandPalette() {
                   <Sparkles size={10} className="text-[var(--accent)]" />
                   <span>FocusBoost</span>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showResetConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowResetConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-sm glass-panel p-6 rounded-2xl border border-white/10 bg-black/80 shadow-2xl flex flex-col gap-4 text-left z-10 select-none"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                  <ShieldAlert size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Wipe Workspace Data?</h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed">
+                    Are you sure you want to erase all tasks, habits, notes, and XP? Your username will be kept.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 py-2 px-4 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmReset}
+                  className="flex-1 py-2 px-4 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all cursor-pointer"
+                >
+                  Yes, Wipe Data
+                </button>
               </div>
             </motion.div>
           </div>

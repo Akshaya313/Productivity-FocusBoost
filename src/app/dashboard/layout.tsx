@@ -6,6 +6,7 @@ import AIAssistant from "@/components/ai-assistant";
 import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
 import { Sparkles, Trophy, Plus, Cloud, CloudOff } from "lucide-react";
 import NotificationsPopover from "@/components/notifications-popover";
+import FloatingTimer from "@/components/floating-timer";
 import { showToast } from "@/lib/toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -128,6 +129,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
         <AIAssistant />
+        <FloatingTimer />
       </div>
 
       {/* Quick Add Modal */}

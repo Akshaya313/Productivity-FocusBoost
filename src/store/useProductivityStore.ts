@@ -55,6 +55,7 @@ export interface Task {
   priority: "low" | "medium" | "high";
   dueDate: string;
   tags: string[];
+  subLabel?: string; // Sub-label category (e.g. Work, Personal, Study, Code, Design)
   subtasks: Subtask[];
   recurrence: "none" | "daily" | "weekly";
   completedAt: string | null;
@@ -101,7 +102,7 @@ export interface Achievement {
   unlockedAt: string | null;
 }
 
-export type ThemeType = "midnight" | "sunset" | "cyberpunk" | "aura";
+export type ThemeType = "midnight" | "sunset" | "cyberpunk" | "aura" | "light";
 
 interface ProductivityState {
   // Profile & Gamification
@@ -119,8 +120,9 @@ interface ProductivityState {
   habits: Habit[];
   weeklyGoals: WeeklyGoal[];
   
-  // Pomodoro Timer
+  // Pomodoro & Stopwatch Timer
   timerMode: "focus" | "short_break" | "long_break";
+  timerDirection: "down" | "up"; // "down" = Pomodoro countdown, "up" = Stopwatch
   duration: number;
   isRunning: boolean;
   isDeepFocus: boolean;
@@ -185,6 +187,7 @@ interface ProductivityState {
 
   // Actions - Pomodoro Timer
   setTimerMode: (mode: "focus" | "short_break" | "long_break") => void;
+  setTimerDirection: (dir: "down" | "up") => void;
   startTimer: () => void;
   pauseTimer: () => void;
   resetTimer: () => void;
@@ -323,6 +326,7 @@ export const useProductivityStore = create<ProductivityState>()(
       habits: [],
       weeklyGoals: [],
       timerMode: "focus",
+      timerDirection: "down",
       duration: 25 * 60,
       isRunning: false,
       isDeepFocus: false,
@@ -898,12 +902,24 @@ export const useProductivityStore = create<ProductivityState>()(
         });
       },
 
+      setTimerDirection: (dir) => {
+        set({
+          timerDirection: dir,
+          duration: dir === "up" ? 0 : get().presets.focus * 60,
+          isRunning: false
+        });
+      },
+
       startTimer: () => set({ isRunning: true }),
       
       pauseTimer: () => set({ isRunning: false }),
       
       resetTimer: () => {
-        const { timerMode, presets } = get();
+        const { timerMode, timerDirection, presets } = get();
+        if (timerDirection === "up") {
+          set({ duration: 0, isRunning: false });
+          return;
+        }
         let duration = presets.focus * 60;
         if (timerMode === "short_break") duration = presets.short_break * 60;
         if (timerMode === "long_break") duration = presets.long_break * 60;
@@ -915,8 +931,13 @@ export const useProductivityStore = create<ProductivityState>()(
       },
 
       tickTimer: () => {
-        const { duration, isRunning, timerMode } = get();
+        const { duration, isRunning, timerMode, timerDirection } = get();
         if (!isRunning) return;
+
+        if (timerDirection === "up") {
+          set({ duration: duration + 1 });
+          return;
+        }
 
         if (duration <= 1) {
           // Timer finished!

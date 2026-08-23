@@ -17,7 +17,7 @@ import {
   Database, 
   TrendingUp 
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/lib/toast";
 
@@ -59,11 +59,14 @@ export default function VisualSettings() {
   // Seeding states
   const [demoLoadSuccess, setDemoLoadSuccess] = useState(false);
 
-  const handleNameSave = (e: React.FormEvent) => {
+  const [showResetModal, setShowResetModal] = useState(false);
+
+  const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) return;
     setUserName(nameInput);
     setSaveNameSuccess(true);
+    showToast("Profile Saved", `Username updated to "${nameInput}".`, "success");
     setTimeout(() => setSaveNameSuccess(false), 2000);
   };
 
@@ -79,6 +82,7 @@ export default function VisualSettings() {
       focusSessionCompleteXP: Number(focusSessionXP)
     });
     setXpSaveSuccess(true);
+    showToast("XP Config Saved", "Gamification parameters updated.", "success");
     setTimeout(() => setXpSaveSuccess(false), 2000);
   };
 
@@ -86,6 +90,7 @@ export default function VisualSettings() {
     e.preventDefault();
     setCustomProgress(Number(customLvl), Number(customXp));
     setProgSaveSuccess(true);
+    showToast("Progress Updated", `Level set to ${customLvl}, XP set to ${customXp}.`, "success");
     setTimeout(() => setProgSaveSuccess(false), 2000);
   };
 
@@ -103,9 +108,10 @@ export default function VisualSettings() {
     }, 1000);
   };
 
-  const handleSystemReset = () => {
+  const handleConfirmSystemReset = () => {
+    setShowResetModal(false);
     resetAllData();
-    showToast("Data Erased", "Workspace reset clean. Username preserved.", "info");
+    showToast("Workspace Reset", `All data erased while preserving your username "${userName}".`, "info");
   };
 
   const themeOptions: { id: ThemeType; name: string; desc: string; colors: string[] }[] = [
@@ -132,6 +138,12 @@ export default function VisualSettings() {
       name: "Aura Glow",
       desc: "Charcoal slates background highlighting color shifting radial overlays.",
       colors: ["bg-[#090a16]", "bg-[#ec4899]", "bg-[#0ea5e9]"]
+    },
+    {
+      id: "light",
+      name: "Pure Light",
+      desc: "Clean, bright mode with soft lavender gradients and indigo accents.",
+      colors: ["bg-[#f8fafc]", "bg-[#6366f1]", "bg-[#8b5cf6]"]
     }
   ];
 
@@ -374,7 +386,7 @@ export default function VisualSettings() {
               <span>Identity Profile</span>
             </h3>
 
-            <form onSubmit={handleNameSave} className="flex flex-col gap-3.5 mt-2">
+            <form onSubmit={handleSaveName} className="flex flex-col gap-3.5 mt-2">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Username</label>
                 <input
@@ -489,11 +501,11 @@ export default function VisualSettings() {
             </h3>
             
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-              Restoring default settings will wipe all customized boards, checklists, and note records. This operation cannot be undone.
+              Wiping workspace data erases all tasks, habits, notes, and XP progress. Your username ({userName}) will remain intact.
             </p>
 
             <button
-              onClick={handleSystemReset}
+              onClick={() => setShowResetModal(true)}
               className="w-full py-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
             >
               <RefreshCw size={13} />
@@ -502,6 +514,54 @@ export default function VisualSettings() {
           </div>
         </div>
       </div>
+
+      {/* Data Wipe Confirmation Modal */}
+      <AnimatePresence>
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowResetModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-sm glass-panel p-6 rounded-2xl border border-white/10 bg-black/80 shadow-2xl flex flex-col gap-4 text-left z-10 select-none"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                  <ShieldAlert size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Wipe Workspace Data?</h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed">
+                    Are you sure you want to erase all tasks, habits, notes, streaks, and XP? Your username (<span className="text-white font-bold">{userName}</span>) will be kept.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => setShowResetModal(false)}
+                  className="flex-1 py-2 px-4 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSystemReset}
+                  className="flex-1 py-2 px-4 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all cursor-pointer"
+                >
+                  Yes, Wipe Data
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

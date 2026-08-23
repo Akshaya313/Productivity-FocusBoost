@@ -266,28 +266,56 @@ export default function IntegratedCalendar() {
                   key={`day-${dayNum}`}
                   onClick={() => setActiveDateStr(dateStr)}
                   className={cn(
-                    "p-2 rounded-xl flex flex-col items-center justify-between border cursor-pointer select-none transition-all relative aspect-square",
+                    "p-1.5 rounded-xl flex flex-col justify-between border cursor-pointer select-none transition-all relative min-h-[72px] sm:min-h-[85px] text-left",
                     isActive 
-                      ? "bg-accent-gradient border-white/10 text-white shadow-lg scale-105"
+                      ? "bg-accent-gradient/90 border-white/20 text-white shadow-lg ring-1 ring-white/30"
                       : isToday
-                        ? "bg-white/10 border-[var(--accent)]/40 text-white"
-                        : "bg-white/5 border-transparent text-[var(--foreground)] hover:bg-white/10 hover:border-white/5"
+                        ? "bg-white/10 border-[var(--accent)]/50 text-white"
+                        : "bg-white/5 border-white/5 text-[var(--foreground)] hover:bg-white/10 hover:border-white/10"
                   )}
                 >
-                  <span className="font-bold text-xs">{dayNum}</span>
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "font-bold text-xs px-1.5 py-0.5 rounded-md",
+                      isToday && !isActive ? "bg-[var(--accent)] text-white" : ""
+                    )}>
+                      {dayNum}
+                    </span>
+                    {dateTasks.length > 0 && (
+                      <span className="text-[9px] font-mono text-[var(--text-muted)] font-bold px-1">
+                        {dateTasks.length} task{dateTasks.length > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                   
-                  {/* Indicator bullet dots */}
-                  {hasTask && (
-                    <div className="flex items-center gap-0.5">
-                      <span className={cn(
-                        "w-1.5 h-1.5 rounded-full shrink-0",
-                        isActive ? "bg-white" : "bg-[var(--accent)] border-accent-glow"
-                      )} />
-                      {dateTasks.length > 1 && (
-                        <span className="text-[8px] font-mono font-bold opacity-80">+{dateTasks.length - 1}</span>
-                      )}
-                    </div>
-                  )}
+                  {/* Task priority color-coded preview pills */}
+                  <div className="flex flex-col gap-1 mt-1 overflow-hidden">
+                    {dateTasks.slice(0, 2).map((t) => (
+                      <div
+                        key={t.id}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[9px] font-semibold truncate leading-tight flex items-center gap-1 border",
+                          t.priority === "high"
+                            ? "bg-red-500/25 border-red-500/40 text-red-200"
+                            : t.priority === "medium"
+                              ? "bg-amber-500/25 border-amber-500/40 text-amber-200"
+                              : "bg-emerald-500/25 border-emerald-500/40 text-emerald-200"
+                        )}
+                        title={`${t.title} (${t.priority} priority)`}
+                      >
+                        <span className={cn(
+                          "w-1 h-1 rounded-full shrink-0",
+                          t.priority === "high" ? "bg-red-400" : t.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"
+                        )} />
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                    ))}
+                    {dateTasks.length > 2 && (
+                      <span className="text-[8px] font-mono font-bold text-[var(--text-muted)] px-1">
+                        +{dateTasks.length - 2} more
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}

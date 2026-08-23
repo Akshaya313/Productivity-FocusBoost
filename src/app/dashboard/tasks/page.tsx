@@ -47,6 +47,7 @@ export default function SmartTasks() {
   const [newPriority, setNewPriority] = useState<Task["priority"]>("medium");
   const [newDueDate, setNewDueDate] = useState(new Date().toISOString().split("T")[0]);
   const [newTagInput, setNewTagInput] = useState("");
+  const [newSubLabel, setNewSubLabel] = useState("");
   const [newXpReward, setNewXpReward] = useState<number | "">(50);
 
   // Edit task details state
@@ -57,6 +58,7 @@ export default function SmartTasks() {
   const [editPriority, setEditPriority] = useState<Task["priority"]>("medium");
   const [editDueDate, setEditDueDate] = useState("");
   const [editTagsInput, setEditTagsInput] = useState("");
+  const [editSubLabel, setEditSubLabel] = useState("");
   const [editXpReward, setEditXpReward] = useState<number | "">(50);
   const [subtaskTitleInput, setSubtaskTitleInput] = useState("");
 
@@ -68,6 +70,7 @@ export default function SmartTasks() {
     setEditPriority(task.priority);
     setEditDueDate(task.dueDate);
     setEditTagsInput(task.tags.join(", "));
+    setEditSubLabel(task.subLabel || "");
     setEditXpReward(task.xpReward ?? 50);
   };
 
@@ -86,6 +89,7 @@ export default function SmartTasks() {
       priority: editPriority,
       dueDate: editDueDate,
       tags: tags.length > 0 ? tags : activeTask.tags,
+      subLabel: editSubLabel.trim() || undefined,
       xpReward: editXpReward !== "" ? Number(editXpReward) : 50
     };
 
@@ -130,6 +134,7 @@ export default function SmartTasks() {
       priority: newPriority,
       dueDate: newDueDate,
       tags: tags.length > 0 ? tags : ["Task"],
+      subLabel: newSubLabel.trim() || undefined,
       subtasks: [],
       recurrence: "none",
       xpReward: newXpReward !== "" ? Number(newXpReward) : undefined
@@ -310,17 +315,31 @@ export default function SmartTasks() {
                         onClick={() => handleOpenTaskDetails(task)}
                         className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[var(--accent)]/30 transition-all cursor-pointer flex flex-col gap-3 group"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className={cn(
-                            "text-xs font-bold leading-relaxed",
-                            task.status === "done" ? "text-[var(--text-muted)] line-through" : "text-white group-hover:text-[var(--accent)]"
-                          )}>
-                            {task.title}
-                          </span>
+                        <div className="flex items-start gap-2.5">
+                          <div onClick={(e) => e.stopPropagation()} className="mt-0.5">
+                            <AnimatedCheckbox
+                              checked={task.status === "done"}
+                              onChange={() => updateTask(task.id, { status: task.status === "done" ? "todo" : "done" })}
+                              triggerConfetti={true}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <span className={cn(
+                              "text-xs font-bold leading-relaxed transition-all",
+                              task.status === "done" ? "text-[var(--text-muted)] line-through opacity-60" : "text-white group-hover:text-[var(--accent)]"
+                            )}>
+                              {task.title}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Card metadata bar */}
                         <div className="flex flex-wrap items-center gap-1.5 text-[9px]">
+                          {task.subLabel && (
+                            <span className="px-1.5 py-0.5 rounded font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              {task.subLabel}
+                            </span>
+                          )}
                           <span className={cn(
                             "px-1.5 py-0.5 rounded font-bold uppercase",
                             task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-yellow-500/10 text-yellow-400" : "bg-green-500/10 text-green-400"
@@ -414,14 +433,19 @@ export default function SmartTasks() {
                   triggerConfetti={true}
                 />
                 <span className={cn(
-                  "text-xs font-semibold truncate max-w-xs sm:max-w-md",
-                  task.status === "done" ? "text-[var(--text-muted)] line-through" : "text-white"
+                  "text-xs font-semibold truncate max-w-xs sm:max-w-md transition-all",
+                  task.status === "done" ? "text-[var(--text-muted)] line-through opacity-60" : "text-white"
                 )}>
                   {task.title}
                 </span>
               </div>
 
               <div className="flex items-center gap-3 text-[10px]">
+                {task.subLabel && (
+                  <span className="px-2 py-0.5 rounded font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {task.subLabel}
+                  </span>
+                )}
                 <span className="bg-purple-500/10 text-purple-300 border border-purple-500/15 px-2 py-0.5 rounded font-bold font-mono">
                   +{task.xpReward ?? 50} XP
                 </span>
@@ -545,6 +569,16 @@ export default function SmartTasks() {
                     placeholder="e.g. Design, UI, Backend..."
                     value={newTagInput}
                     onChange={(e) => setNewTagInput(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Sub-Label (Category)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Work, Personal, Study..."
+                    value={newSubLabel}
+                    onChange={(e) => setNewSubLabel(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[var(--accent)]"
                   />
                 </div>
@@ -675,6 +709,17 @@ export default function SmartTasks() {
                         className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)] font-mono"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Sub-Label (Category)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Work, Personal, Study..."
+                      value={editSubLabel}
+                      onChange={(e) => setEditSubLabel(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)]"
+                    />
                   </div>
 
                   <button

@@ -15,10 +15,19 @@ interface ToastMessage {
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, cursorEffect, checkStreak, setUser, loadCloudData } = useProductivityStore();
+  const { theme, cursorEffect, checkStreak, setUser, loadCloudData, isRunning, tickTimer } = useProductivityStore();
   const [mounted, setMounted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Global background timer ticking across all routes
+  useEffect(() => {
+    if (!isRunning) return;
+    const interval = setInterval(() => {
+      tickTimer();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, tickTimer]);
 
   // Subscribe to real Firebase auth state — keeps user logged in across refreshes
   useEffect(() => {
@@ -31,7 +40,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     return () => unsubscribe();
   }, []);
 
-  // Track mouse coordinates for premium cursor trail
+  // Track mouse coordinates for premium star cursor trail
   useEffect(() => {
     if (!cursorEffect) return;
     const handleMouseMove = (e: MouseEvent) => {
@@ -115,24 +124,20 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 
   return (
     <>
-      {/* Visual Cursor Trail */}
+      {/* Star Cursor Follower */}
       {cursorEffect && typeof window !== "undefined" && window.innerWidth > 768 && (
-        <>
-          <div
-            className="custom-cursor hidden md:block"
-            style={{
-              left: `${mousePos.x}px`,
-              top: `${mousePos.y}px`,
-            }}
-          />
-          <div
-            className="custom-cursor-dot hidden md:block"
-            style={{
-              left: `${mousePos.x}px`,
-              top: `${mousePos.y}px`,
-            }}
-          />
-        </>
+        <div
+          className="fixed pointer-events-none z-[99999] transition-transform duration-75 ease-out translate-x-[-50%] translate-y-[-50%]"
+          style={{
+            left: `${mousePos.x}px`,
+            top: `${mousePos.y}px`,
+          }}
+        >
+          <div className="relative flex items-center justify-center">
+            <Star size={16} className="text-amber-300 fill-amber-300 drop-shadow-[0_0_8px_rgba(252,211,77,0.8)] animate-pulse" />
+            <div className="absolute w-6 h-6 rounded-full bg-amber-400/20 blur-sm pointer-events-none" />
+          </div>
+        </div>
       )}
 
       {/* Children content */}

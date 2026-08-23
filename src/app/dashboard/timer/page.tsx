@@ -12,6 +12,7 @@ import { showToast } from "@/lib/toast";
 export default function AdvancedTimer() {
   const {
     timerMode,
+    timerDirection,
     duration,
     isRunning,
     isDeepFocus,
@@ -21,6 +22,7 @@ export default function AdvancedTimer() {
     resetTimer,
     tickTimer,
     setTimerMode,
+    setTimerDirection,
     setPresets,
     setDeepFocus,
     timerHistory
@@ -29,19 +31,6 @@ export default function AdvancedTimer() {
   const [focusInput, setFocusInput] = useState(presets.focus);
   const [shortInput, setShortInput] = useState(presets.short_break);
   const [longInput, setLongInput] = useState(presets.long_break);
-
-  // Synchronous countdown timer tick logic
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isRunning) {
-      interval = setInterval(() => {
-        tickTimer();
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRunning, tickTimer]);
 
   // Handle Spacebar to Pause/Play and Escape to Exit Deep Focus
   useEffect(() => {
@@ -190,23 +179,51 @@ export default function AdvancedTimer() {
         {/* Left 2 Cols: Timer Ring Visualizer */}
         <div className="lg:col-span-2 glass-panel p-8 rounded-3xl border border-white/5 flex flex-col items-center justify-center gap-8 relative">
           
-          {/* Mode Selector Preset Tabs */}
-          <div className="flex bg-black/35 p-1 rounded-xl border border-white/5 gap-1.5">
-            {(["focus", "short_break", "long_break"] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setTimerMode(mode)}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer border border-transparent",
-                  timerMode === mode
-                    ? "bg-accent-gradient text-white shadow"
-                    : "text-[var(--text-muted)] hover:text-white"
-                )}
-              >
-                {mode.replace("_", " ")}
-              </button>
-            ))}
+          {/* Timer Direction Selector (Countdown vs Count-Up Stopwatch) */}
+          <div className="flex bg-black/35 p-1 rounded-xl border border-white/5 gap-1.5 mb-2">
+            <button
+              onClick={() => setTimerDirection("down")}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border",
+                timerDirection === "down"
+                  ? "bg-accent-gradient text-white border-white/10 shadow"
+                  : "bg-transparent text-[var(--text-muted)] border-transparent hover:text-white"
+              )}
+            >
+              Countdown (Pomodoro)
+            </button>
+            <button
+              onClick={() => setTimerDirection("up")}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border",
+                timerDirection === "up"
+                  ? "bg-accent-gradient text-white border-white/10 shadow"
+                  : "bg-transparent text-[var(--text-muted)] border-transparent hover:text-white"
+              )}
+            >
+              Count-Up (Stopwatch)
+            </button>
           </div>
+
+          {/* Mode Selector Preset Tabs */}
+          {timerDirection === "down" && (
+            <div className="flex bg-black/35 p-1 rounded-xl border border-white/5 gap-1.5">
+              {(["focus", "short_break", "long_break"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setTimerMode(mode)}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer border border-transparent",
+                    timerMode === mode
+                      ? "bg-accent-gradient text-white shadow"
+                      : "text-[var(--text-muted)] hover:text-white"
+                  )}
+                >
+                  {mode.replace("_", " ")}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Standard Circular SVG visual Countdown ring */}
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
