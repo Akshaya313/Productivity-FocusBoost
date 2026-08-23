@@ -32,15 +32,36 @@ import {
 export type { User as FirebaseUser };
 
 // ---------------------------------------------------------------------------
-// 1. Detect if Real Firebase keys are provided in .env.local
+// 1. Detect if Real Firebase keys are actually configured for this deployment
 // ---------------------------------------------------------------------------
-const isRealFirebaseConfigured = 
-  typeof window !== "undefined" &&
-  !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
-  !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY !== "";
+const getMissingFirebaseConfig = () => {
+  const requiredKeys = [
+    "NEXT_PUBLIC_FIREBASE_API_KEY",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    "NEXT_PUBLIC_FIREBASE_APP_ID",
+  ] as const;
 
-export const isCloudConnected = isRealFirebaseConfigured;
+  return requiredKeys.filter((key) => {
+    const value = process.env[key];
+    return !value || value.trim() === "";
+  });
+};
+
+export const firebaseConfigStatus = {
+  configured: getMissingFirebaseConfig().length === 0,
+  missing: getMissingFirebaseConfig(),
+};
+
+export const isCloudConnected = firebaseConfigStatus.configured;
+
+const isLocalDevHost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.endsWith(".local"));
 
 // ---------------------------------------------------------------------------
 // 2. Real Firebase initialization (conditional)
@@ -50,7 +71,7 @@ export let auth: Auth | null = null;
 export let db: Firestore | null = null;
 export let googleProvider: GoogleAuthProvider | null = null;
 
-if (isRealFirebaseConfigured) {
+if (isCloudConnected) {
   try {
     const firebaseConfig = {
       apiKey:             process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -76,6 +97,11 @@ if (isRealFirebaseConfigured) {
 // ---------------------------------------------------------------------------
 const simulateDelay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const createMockUserId = (email?: string) => {
+  const seed = email ? email.toLowerCase().replace(/[^a-z0-9]/g, "") : Math.random().toString(36).slice(2, 10);
+  return `mock-user-${seed}-${Date.now()}`;
+};
+
 const getLocalCollection = (collection: string): Record<string, any> => {
   if (typeof window === "undefined") return {};
   const data = localStorage.getItem(`flowzone_offline_${collection}`);
@@ -91,7 +117,7 @@ const saveLocalCollection = (collection: string, data: Record<string, any>) => {
 let mockAuthListeners: ((user: User | null) => void)[] = [];
 let mockCurrentUser: User | null = null;
 
-if (typeof window !== "undefined" && !isRealFirebaseConfigured) {
+if (typeof window !== "undefined" && !isCloudConnected) {
   const storedUser = localStorage.getItem("flowzone_offline_active_user");
   if (storedUser) {
     mockCurrentUser = JSON.parse(storedUser) as User;
@@ -108,103 +134,122 @@ const notifyMockAuthListeners = () => {
 
 /** Open Google account picker (Real popup or Simulated login) */
 export async function signInWithGoogle(): Promise<User> {
-  if (isRealFirebaseConfigured && auth && googleProvider) {
+  if (isCloudConnected && auth && googleProvider) {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } else {
-    // Simulated Google Login
-    await simulateDelay(600);
-    const mockUser = {
-      uid: "google-mock-user-123",
-      email: "google.user@example.com",
-      displayName: "Google Explorer",
-      photoURL: null,
-    } as any as User;
-    
-    mockCurrentUser = mockUser;
-    localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
-    notifyMockAuthListeners();
-    return mockUser;
   }
+
+  if (!isLocalDevHost) {
+    throw new Error(
+      "Google sign-in is not configured for this deployment. Add the Firebase environment variables in Vercel and redeploy."
+    );
+  }
+
+  // Simulated Google Login only for local development
+  await simulateDelay(600);
+  const mockEmail = `google.user.${Math.random().toString(36).slice(2, 8)}@example.com`;
+  const mockUser = {
+    uid: createMockUserId(mockEmail),
+    email: mockEmail,
+    displayName: "Google Explorer",
+    photoURL: null,
+  } as any as User;
+
+  mockCurrentUser = mockUser;
+  localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
+  notifyMockAuthListeners();
+  return mockUser;
 }
 
 /** Email + password sign-in (Real or Simulated) */
 export async function signInWithEmail(email: string, password: string): Promise<User> {
-  if (isRealFirebaseConfigured && auth) {
+  if (isCloudConnected && auth) {
     const result = await signInWithEmailAndPassword(auth, email, password);
     return result.user;
-  } else {
-    // Simulated Email Login
-    await simulateDelay(600);
-    const users = getLocalCollection("registered_users");
-    const matched = Object.values(users).find(
-      (u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-
-    if (!matched) {
-      throw new Error("auth/wrong-password-or-email: The email address or password provided is incorrect.");
-    }
-
-    const mockUser = {
-      uid: matched.uid,
-      email: matched.email,
-      displayName: matched.displayName,
-    } as any as User;
-
-    mockCurrentUser = mockUser;
-    localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
-    notifyMockAuthListeners();
-    return mockUser;
   }
+
+  if (!isLocalDevHost) {
+    throw new Error(
+      "Email sign-in is not configured for this deployment. Add the Firebase environment variables in Vercel and redeploy."
+    );
+  }
+
+  // Simulated Email Login
+  await simulateDelay(600);
+  const users = getLocalCollection("registered_users");
+  const matched = Object.values(users).find(
+    (u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+  );
+
+  if (!matched) {
+    throw new Error("auth/wrong-password-or-email: The email address or password provided is incorrect.");
+  }
+
+  const mockUser = {
+    uid: matched.uid,
+    email: matched.email,
+    displayName: matched.displayName,
+  } as any as User;
+
+  mockCurrentUser = mockUser;
+  localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
+  notifyMockAuthListeners();
+  return mockUser;
 }
 
 /** Email + password sign-up, with display name (Real or Simulated) */
 export async function signUpWithEmail(email: string, password: string, displayName: string): Promise<User> {
-  if (isRealFirebaseConfigured && auth) {
+  if (isCloudConnected && auth) {
     const result = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(result.user, { displayName });
     return result.user;
-  } else {
-    // Simulated Email Sign-Up
-    await simulateDelay(600);
-    if (password.length < 6) {
-      throw new Error("auth/weak-password: Password should be at least 6 characters.");
-    }
-
-    const users = getLocalCollection("registered_users");
-    const emailExists = Object.values(users).some((u: any) => u.email.toLowerCase() === email.toLowerCase());
-    if (emailExists) {
-      throw new Error("auth/email-already-in-use: An account with this email address already exists.");
-    }
-
-    const uid = `usr-${Date.now()}`;
-    const newUser = {
-      uid,
-      email,
-      displayName,
-      password,
-      createdAt: new Date().toISOString()
-    };
-
-    users[uid] = newUser;
-    saveLocalCollection("registered_users", users);
-
-    const mockUser = {
-      uid,
-      email,
-      displayName,
-    } as any as User;
-
-    mockCurrentUser = mockUser;
-    localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
-    notifyMockAuthListeners();
-    return mockUser;
   }
+
+  if (!isLocalDevHost) {
+    throw new Error(
+      "Email sign-up is not configured for this deployment. Add the Firebase environment variables in Vercel and redeploy."
+    );
+  }
+
+  // Simulated Email Sign-Up
+  await simulateDelay(600);
+  if (password.length < 6) {
+    throw new Error("auth/weak-password: Password should be at least 6 characters.");
+  }
+
+  const users = getLocalCollection("registered_users");
+  const emailExists = Object.values(users).some((u: any) => u.email.toLowerCase() === email.toLowerCase());
+  if (emailExists) {
+    throw new Error("auth/email-already-in-use: An account with this email address already exists.");
+  }
+
+  const uid = `usr-${Date.now()}`;
+  const newUser = {
+    uid,
+    email,
+    displayName,
+    password,
+    createdAt: new Date().toISOString()
+  };
+
+  users[uid] = newUser;
+  saveLocalCollection("registered_users", users);
+
+  const mockUser = {
+    uid,
+    email,
+    displayName,
+  } as any as User;
+
+  mockCurrentUser = mockUser;
+  localStorage.setItem("flowzone_offline_active_user", JSON.stringify(mockUser));
+  notifyMockAuthListeners();
+  return mockUser;
 }
 
 /** Sign out (Real or Simulated) */
 export async function firebaseSignOut(): Promise<void> {
-  if (isRealFirebaseConfigured && auth) {
+  if (isCloudConnected && auth) {
     await signOut(auth);
   } else {
     await simulateDelay(300);
@@ -216,7 +261,7 @@ export async function firebaseSignOut(): Promise<void> {
 
 /** Listen to auth state changes (Real or Simulated) */
 export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
-  if (isRealFirebaseConfigured && auth) {
+  if (isCloudConnected && auth) {
     return onAuthStateChanged(auth, callback);
   } else {
     mockAuthListeners.push(callback);
@@ -251,7 +296,7 @@ export async function saveUserData(uid: string, data: Record<string, unknown>): 
     } catch (e) {}
   }
 
-  if (isRealFirebaseConfigured && db) {
+  if (isCloudConnected && db) {
     try {
       const ref = doc(db, "users", uid);
       await withTimeout(setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true }), 1200, undefined);
@@ -273,7 +318,7 @@ export async function saveUserData(uid: string, data: Record<string, unknown>): 
 
 /** Read a user document */
 export async function getUserData(uid: string): Promise<any> {
-  if (isRealFirebaseConfigured && db) {
+  if (isCloudConnected && db) {
     try {
       const ref = doc(db, "users", uid);
       const snap = await withTimeout(getDoc(ref), 1200, null as any);
