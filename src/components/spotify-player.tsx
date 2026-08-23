@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, SkipForward, Music, Volume2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { showToast } from "@/lib/toast";
 
 interface Track {
   title: string;
@@ -94,7 +95,7 @@ export default function SpotifyFocusPlayer() {
       audioRef.current.play()
         .then(() => setIsPlaying(true))
         .catch(() => {
-          alert("Click again or select another track (requires browser interaction approval)");
+          showToast("Audio Autoplay Notice", "Click play again to start ambient track.", "info");
           setIsPlaying(false);
         });
     }

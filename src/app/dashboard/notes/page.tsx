@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export default function BrainNotes() {
   const {
@@ -355,9 +356,8 @@ export default function BrainNotes() {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm("Delete this notebook card permanently?")) {
-                        deleteNote(activeNote.id);
-                      }
+                      deleteNote(activeNote.id);
+                      showToast("Note Removed", "Notebook card deleted.", "info");
                     }}
                     className="p-1.5 rounded-lg bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 text-red-400 cursor-pointer transition-colors"
                     title="Delete Note"

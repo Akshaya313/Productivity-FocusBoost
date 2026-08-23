@@ -357,23 +357,27 @@ export const useProductivityStore = create<ProductivityState>()(
       setUser: (user) => set({ user }),
 
       signUpWithEmail: async (email, password, name) => {
-        set({ authLoading: true, syncError: null });
+        set({
+          authLoading: true,
+          syncError: null,
+          user: null,
+          userName: name,
+          xp: 0,
+          level: 0,
+          streak: 0,
+          tasks: [],
+          habits: [],
+          weeklyGoals: [],
+          notes: [],
+          activeNoteId: null,
+          timerHistory: []
+        });
         try {
           const firebaseUser = await firebaseSignUpWithEmail(email, password, name);
-          // Initialize clean level 0 state for new user
           set({
             user: firebaseUser,
             authLoading: false,
             userName: name,
-            xp: 0,
-            level: 0,
-            streak: 0,
-            tasks: [],
-            habits: [],
-            weeklyGoals: [],
-            notes: [],
-            activeNoteId: null,
-            timerHistory: []
           });
           await get().syncDataToCloud();
         } catch (err: any) {
@@ -383,11 +387,25 @@ export const useProductivityStore = create<ProductivityState>()(
       },
 
       loginWithEmail: async (email, password) => {
-        set({ authLoading: true, syncError: null });
+        set({
+          authLoading: true,
+          syncError: null,
+          user: null,
+          userName: "Loading...",
+          xp: 0,
+          level: 0,
+          streak: 0,
+          tasks: [],
+          habits: [],
+          weeklyGoals: [],
+          notes: [],
+          activeNoteId: null,
+          timerHistory: []
+        });
         try {
           const firebaseUser = await signInWithEmail(email, password);
           set({ user: firebaseUser, authLoading: false });
-          get().loadCloudData(firebaseUser.uid).catch(() => {});
+          await get().loadCloudData(firebaseUser.uid);
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in" });
           throw err;
@@ -395,12 +413,26 @@ export const useProductivityStore = create<ProductivityState>()(
       },
 
       loginWithGoogle: async () => {
-        set({ authLoading: true, syncError: null });
+        set({
+          authLoading: true,
+          syncError: null,
+          user: null,
+          userName: "Loading...",
+          xp: 0,
+          level: 0,
+          streak: 0,
+          tasks: [],
+          habits: [],
+          weeklyGoals: [],
+          notes: [],
+          activeNoteId: null,
+          timerHistory: []
+        });
         try {
           const firebaseUser = await signInWithGoogle();
           const displayName = firebaseUser.displayName || "Google User";
           set({ user: firebaseUser, authLoading: false, userName: displayName });
-          get().loadCloudData(firebaseUser.uid).catch(() => {});
+          await get().loadCloudData(firebaseUser.uid);
         } catch (err: any) {
           set({ authLoading: false, syncError: err.message || "Failed to log in with Google" });
           throw err;
@@ -411,6 +443,13 @@ export const useProductivityStore = create<ProductivityState>()(
         set({ authLoading: true });
         try {
           await firebaseSignOut();
+        } catch (err) {
+          console.error("Sign out error:", err);
+        } finally {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("antigravity-productivity-state");
+            localStorage.removeItem("flowzone_offline_active_user");
+          }
           set({
             user: null,
             authLoading: false,
@@ -434,8 +473,6 @@ export const useProductivityStore = create<ProductivityState>()(
               levelingCurve: "linear"
             }
           });
-        } catch (err) {
-          set({ authLoading: false });
         }
       },
 
@@ -456,6 +493,9 @@ export const useProductivityStore = create<ProductivityState>()(
             notes: get().notes,
             xpConfig: get().xpConfig
           };
+          if (typeof window !== "undefined") {
+            localStorage.setItem(`focusboost_user_data_${user.uid}`, JSON.stringify(payload));
+          }
           await saveUserData(user.uid, payload);
           set({ isSyncing: false, lastSyncedAt: new Date().toISOString() });
         } catch (err: any) {
@@ -464,42 +504,72 @@ export const useProductivityStore = create<ProductivityState>()(
       },
 
       loadCloudData: async (uid) => {
-        set({ isSyncing: true, syncError: null });
+        // 1. Instantly load per-user local cache if available for immediate zero-delay display
+        let cachedData: any = null;
+        if (typeof window !== "undefined") {
+          const raw = localStorage.getItem(`focusboost_user_data_${uid}`);
+          if (raw) {
+            try {
+              cachedData = JSON.parse(raw);
+            } catch (e) {}
+          }
+        }
+
+        if (cachedData) {
+          set({
+            userName: cachedData.userName || get().user?.displayName || get().userName,
+            xp: cachedData.xp !== undefined ? cachedData.xp : 0,
+            level: cachedData.level !== undefined ? cachedData.level : 0,
+            streak: cachedData.streak !== undefined ? cachedData.streak : 0,
+            tasks: cachedData.tasks || [],
+            habits: cachedData.habits || [],
+            weeklyGoals: cachedData.weeklyGoals || [],
+            timerHistory: cachedData.timerHistory || [],
+            notes: cachedData.notes || [],
+            activeNoteId: cachedData.notes?.length ? cachedData.notes[0].id : null,
+            xpConfig: cachedData.xpConfig || get().xpConfig,
+            isSyncing: false,
+          });
+        } else {
+          // Clean state for new user to prevent flashing another user's cached items
+          set({
+            isSyncing: true,
+            syncError: null,
+            tasks: [],
+            habits: [],
+            weeklyGoals: [],
+            notes: [],
+            activeNoteId: null,
+            timerHistory: [],
+            xp: 0,
+            level: 0,
+            streak: 0
+          });
+        }
+
+        // 2. Fetch or sync Firestore in background (non-blocking)
         try {
           const data = await getUserData(uid);
           if (data) {
-            set({
+            const updatedState = {
               userName: data.userName || get().user?.displayName || get().userName,
-              xp: data.xp !== undefined ? data.xp : 0,
-              level: data.level !== undefined ? data.level : 0,
-              streak: data.streak !== undefined ? data.streak : 0,
-              tasks: data.tasks || [],
-              habits: data.habits || [],
-              weeklyGoals: data.weeklyGoals || [],
-              timerHistory: data.timerHistory || [],
-              notes: data.notes || [],
+              xp: data.xp !== undefined ? data.xp : get().xp,
+              level: data.level !== undefined ? data.level : get().level,
+              streak: data.streak !== undefined ? data.streak : get().streak,
+              tasks: data.tasks || get().tasks,
+              habits: data.habits || get().habits,
+              weeklyGoals: data.weeklyGoals || get().weeklyGoals,
+              timerHistory: data.timerHistory || get().timerHistory,
+              notes: data.notes || get().notes,
+              activeNoteId: data.notes?.length ? data.notes[0].id : get().activeNoteId,
               xpConfig: data.xpConfig || get().xpConfig,
               isSyncing: false,
               lastSyncedAt: new Date().toISOString()
-            });
-          } else {
-            // First-time user logging in: initialize clean account (0 level, 0 XP, empty tasks & notes)
-            const cleanName = get().user?.displayName || get().userName || "Flow User";
-            set({
-              userName: cleanName,
-              xp: 0,
-              level: 0,
-              streak: 0,
-              tasks: [],
-              habits: [],
-              weeklyGoals: [],
-              notes: [],
-              activeNoteId: null,
-              timerHistory: [],
-              isSyncing: false,
-              lastSyncedAt: new Date().toISOString()
-            });
-            await get().syncDataToCloud();
+            };
+            set(updatedState);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(`focusboost_user_data_${uid}`, JSON.stringify(updatedState));
+            }
           }
         } catch (err: any) {
           set({ isSyncing: false, syncError: err.message || "Failed to load cloud data" });
@@ -988,8 +1058,10 @@ export const useProductivityStore = create<ProductivityState>()(
       setCursorEffect: (cursorEffect) => set({ cursorEffect }),
 
       resetAllData: () => {
+        const currentName = get().userName;
+        const currentUid = get().user?.uid;
         set({
-          userName: "Flow User",
+          userName: currentName,
           xp: 0,
           level: 0,
           streak: 0,
@@ -1020,6 +1092,9 @@ export const useProductivityStore = create<ProductivityState>()(
             levelingCurve: "linear"
           }
         });
+        if (currentUid && typeof window !== "undefined") {
+          localStorage.removeItem(`focusboost_user_data_${currentUid}`);
+        }
         get().syncDataToCloud();
       }
     }),

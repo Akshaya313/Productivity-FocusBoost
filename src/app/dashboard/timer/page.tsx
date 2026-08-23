@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AmbientSoundPlayer from "@/components/ambient-sound";
 import SpotifyFocusPlayer from "@/components/spotify-player";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export default function AdvancedTimer() {
   const {
@@ -75,7 +76,7 @@ export default function AdvancedTimer() {
       short_break: Number(shortInput),
       long_break: Number(longInput)
     });
-    alert("Presets customized successfully!");
+    showToast("Presets Saved", "Timer presets customized successfully.", "success");
   };
 
   return (

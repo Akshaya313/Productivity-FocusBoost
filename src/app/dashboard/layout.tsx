@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import AIAssistant from "@/components/ai-assistant";
 import { useProductivityStore, getLevelInfo } from "@/store/useProductivityStore";
-import { Sparkles, Trophy, Plus, Settings, Compass, Search, Calendar, CheckSquare, Bell, Cloud, CloudOff } from "lucide-react";
+import { Sparkles, Trophy, Plus, Cloud, CloudOff } from "lucide-react";
+import NotificationsPopover from "@/components/notifications-popover";
+import { showToast } from "@/lib/toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -38,8 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setNewTaskPriority("medium");
     setQuickAddOpen(false);
     
-    // Dispatch small custom notification or sound? 
-    alert("New task added to Inbox!");
+    showToast("Task Created", `"${newTaskTitle}" added to your Inbox.`, "success");
   };
 
   // If in deep focus mode, hide the sidebar and header completely to maintain absolute distraction-free focus!
@@ -117,11 +118,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="hidden sm:inline">Quick Add</span>
             </button>
 
-            {/* Visual notification bell placeholder */}
-            <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--text-muted)] hover:text-white transition-colors cursor-pointer relative">
-              <Bell size={14} />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
-            </button>
+            {/* Notifications Popover */}
+            <NotificationsPopover />
           </div>
         </header>
 

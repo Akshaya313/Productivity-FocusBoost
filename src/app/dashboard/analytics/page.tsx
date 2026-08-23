@@ -6,47 +6,82 @@ import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContai
 import { Sparkles, Calendar, TrendingUp, Award, Clock, CheckSquare, Zap, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Mock datasets for analytics showcase
-const WEEKLY_DISTRIBUTION = [
-  { name: "Mon", focus: 150, break: 30 },
-  { name: "Tue", focus: 220, break: 45 },
-  { name: "Wed", focus: 180, break: 35 },
-  { name: "Thu", focus: 260, break: 50 },
-  { name: "Fri", focus: 210, break: 40 },
-  { name: "Sat", focus: 90, break: 20 },
-  { name: "Sun", focus: 120, break: 25 }
-];
-
-const PEAK_HOURS = [
-  { hour: "08 AM", sessions: 2 },
-  { hour: "10 AM", sessions: 5 },
-  { hour: "12 PM", sessions: 3 },
-  { hour: "02 PM", sessions: 4 },
-  { hour: "04 PM", sessions: 6 },
-  { hour: "06 PM", sessions: 2 },
-  { hour: "08 PM", sessions: 1 }
-];
-
 export default function InteractiveAnalytics() {
-  const { timerHistory, tasks, habits } = useProductivityStore();
+  const { timerHistory, tasks, habits, xp, level, streak } = useProductivityStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Calculate high-fidelity metrics
-  const totalFocusSessions = timerHistory.filter((s) => s.mode === "focus").length;
-  const totalFocusMinutes = timerHistory
-    .filter((s) => s.mode === "focus")
-    .reduce((acc, curr) => acc + curr.duration / 60, 0);
+  // Calculate high-fidelity metrics from actual user store data
+  const focusSessions = timerHistory.filter((s) => s.mode === "focus");
+  const totalFocusSessions = focusSessions.length;
+  const totalFocusMinutes = focusSessions.reduce((acc, curr) => acc + curr.duration / 60, 0);
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "done").length;
   const taskRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  const todayStr = new Date().toISOString().split("T")[0];
   const totalHabitCompletions = habits.reduce((acc, curr) => acc + curr.completedDays.length, 0);
+
+  // Compute actual weekly focus distribution (Mon-Sun) from timerHistory
+  const computeWeeklyDistribution = () => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const result = days.map((day) => ({ name: day, focus: 0, break: 0 }));
+
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 is Sun
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    const mondayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
+
+    timerHistory.forEach((s) => {
+      if (!s.timestamp) return;
+      const sDate = new Date(s.timestamp);
+      const diffDays = Math.floor((sDate.getTime() - mondayDate.getTime()) / (86400000));
+      if (diffDays >= 0 && diffDays < 7) {
+        const index = (sDate.getDay() + 6) % 7; // Convert Sun-Sat (0-6) to Mon-Sun (0-6)
+        const mins = Math.round(s.duration / 60);
+        if (s.mode === "focus") {
+          result[index].focus += mins;
+        } else {
+          result[index].break += mins;
+        }
+      }
+    });
+
+    return result;
+  };
+
+  // Compute actual peak focus hours from timerHistory
+  const computePeakHours = () => {
+    const slots = [
+      { label: "08 AM", start: 7, end: 9 },
+      { label: "10 AM", start: 9, end: 11 },
+      { label: "12 PM", start: 11, end: 13 },
+      { label: "02 PM", start: 13, end: 15 },
+      { label: "04 PM", start: 15, end: 17 },
+      { label: "06 PM", start: 17, end: 19 },
+      { label: "08 PM", start: 19, end: 21 },
+    ];
+
+    const counts: Record<string, number> = {};
+    slots.forEach((s) => (counts[s.label] = 0));
+
+    focusSessions.forEach((s) => {
+      if (!s.timestamp) return;
+      const hour = new Date(s.timestamp).getHours();
+      const matched = slots.find((slot) => hour >= slot.start && hour < slot.end);
+      if (matched) {
+        counts[matched.label] += 1;
+      }
+    });
+
+    return slots.map((s) => ({ hour: s.label, sessions: counts[s.label] }));
+  };
+
+  const weeklyData = computeWeeklyDistribution();
+  const peakData = computePeakHours();
 
   // Focus Heatmap contribution grid mapping (last 14 days)
   const getHeatmapGrid = () => {
@@ -55,7 +90,7 @@ export default function InteractiveAnalytics() {
     for (let i = 13; i >= 0; i--) {
       const date = new Date(today.getTime() - i * 86400000);
       const dateStr = date.toISOString().split("T")[0];
-      const count = timerHistory.filter((s) => s.timestamp.split("T")[0] === dateStr).length;
+      const count = timerHistory.filter((s) => s.timestamp && s.timestamp.split("T")[0] === dateStr).length;
       grid.push({ dateStr, count, label: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
     }
     return grid;
@@ -67,40 +102,45 @@ export default function InteractiveAnalytics() {
     return <div className="text-center text-xs text-[var(--text-muted)] py-12">Loading visual analytics data...</div>;
   }
 
+  // Find index of maximum peak hour for highlighted bar
+  const maxPeakSessions = Math.max(...peakData.map((p) => p.sessions), 1);
+
   return (
     <div className="flex flex-col gap-6 select-none relative h-full">
-      {/* Header controls controls */}
+      {/* Header controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-white">Visual Analytics Dashboard</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <span>Visual Analytics Dashboard</span>
+            <Sparkles size={18} className="text-purple-400" />
+          </h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Understand your focus rhythms. Discover peaks, tracks streaks, and measure flow rates.
+            Realtime metrics calculated live from your actual tasks, focus sessions, habits, and level progress.
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-white bg-white/5 border border-white/10 px-3 py-1 rounded-xl">
-          <Activity size={14} className="text-[var(--accent)] animate-pulse" />
-          <span className="font-bold">Realtime Insights Active</span>
+        <div className="flex items-center gap-1.5 text-xs text-white bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+          <Activity size={14} className="text-emerald-400 animate-pulse" />
+          <span className="font-bold text-emerald-400">Live Data Active</span>
         </div>
       </div>
 
-      {/* Metrics Row Row */}
+      {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Metric 1 */}
         <div className="glass-panel p-4 rounded-xl border border-white/5 flex flex-col gap-1 text-left">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Total Focused Hours</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Total Focused Time</span>
           <span className="text-xl font-black text-white">{(totalFocusMinutes / 60).toFixed(1)} hrs</span>
-          <span className="text-[9px] text-emerald-400 mt-1 flex items-center gap-0.5">
-            <TrendingUp size={10} />
-            <span>+12.4% vs last week</span>
+          <span className="text-[9px] text-[var(--accent)] mt-1 font-mono">
+            {totalFocusMinutes} total focus minutes
           </span>
         </div>
         
         {/* Metric 2 */}
         <div className="glass-panel p-4 rounded-xl border border-white/5 flex flex-col gap-1 text-left">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Attention Blocks</span>
-          <span className="text-xl font-black text-white">{totalFocusSessions} intervals</span>
-          <span className="text-[9px] text-[var(--text-muted)] mt-1">Average 25-min durations</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Focus Sessions</span>
+          <span className="text-xl font-black text-white">{totalFocusSessions} completed</span>
+          <span className="text-[9px] text-[var(--text-muted)] mt-1">Pomodoro intervals</span>
         </div>
 
         {/* Metric 3 */}
@@ -109,15 +149,18 @@ export default function InteractiveAnalytics() {
           <span className="text-xl font-black text-white">{taskRate}%</span>
           <span className="text-[9px] text-emerald-400 mt-1 flex items-center gap-0.5">
             <TrendingUp size={10} />
-            <span>{completedTasks} tasks archived</span>
+            <span>{completedTasks} / {totalTasks} tasks done</span>
           </span>
         </div>
 
         {/* Metric 4 */}
         <div className="glass-panel p-4 rounded-xl border border-white/5 flex flex-col gap-1 text-left">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Habit Compliance</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Habits Logged</span>
           <span className="text-xl font-black text-white">{totalHabitCompletions} logs</span>
-          <span className="text-[9px] text-[var(--text-muted)] mt-1">Streaks maintained daily</span>
+          <span className="text-[9px] text-orange-400 mt-1 flex items-center gap-0.5 font-bold">
+            <Zap size={10} />
+            <span>{streak}-day streak</span>
+          </span>
         </div>
       </div>
 
@@ -129,14 +172,17 @@ export default function InteractiveAnalytics() {
           
           {/* Curved Area Chart: Weekly focus times */}
           <div className="glass-panel p-5 rounded-2xl border border-white/5 h-80 flex flex-col bg-black/10">
-            <h3 className="text-xs uppercase font-bold tracking-widest text-[var(--text-muted)] mb-4 flex items-center gap-1.5">
-              <TrendingUp size={14} className="text-[var(--accent)]" />
-              <span>Weekly Focus Distribution (min)</span>
+            <h3 className="text-xs uppercase font-bold tracking-widest text-[var(--text-muted)] mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-[var(--accent)]" />
+                <span>Weekly Focus Distribution (min)</span>
+              </span>
+              <span className="text-[9px] font-mono text-emerald-400 font-bold">Actual Weekly Data</span>
             </h3>
 
             <div className="flex-1 w-full h-full text-xs">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={WEEKLY_DISTRIBUTION} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={weeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorFocus" x1="0%" y1="0%" x2="0%" y2="100%">
                       <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.4}/>
@@ -167,14 +213,17 @@ export default function InteractiveAnalytics() {
 
           {/* Peak Productive Hours: Bar chart */}
           <div className="glass-panel p-5 rounded-2xl border border-white/5 h-64 flex flex-col bg-black/10">
-            <h3 className="text-xs uppercase font-bold tracking-widest text-[var(--text-muted)] mb-4 flex items-center gap-1.5">
-              <Clock size={14} className="text-[var(--accent)]" />
-              <span>Peak Focus Intervals by Time Slots</span>
+            <h3 className="text-xs uppercase font-bold tracking-widest text-[var(--text-muted)] mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Clock size={14} className="text-[var(--accent)]" />
+                <span>Peak Focus Intervals by Time Slots</span>
+              </span>
+              <span className="text-[9px] font-mono text-[var(--text-muted)] font-bold">{totalFocusSessions} Total Sessions</span>
             </h3>
 
             <div className="flex-1 w-full h-full text-xs">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={PEAK_HOURS} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={peakData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <XAxis dataKey="hour" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
                   <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} />
                   <Tooltip
@@ -187,8 +236,11 @@ export default function InteractiveAnalytics() {
                     }}
                   />
                   <Bar dataKey="sessions" radius={[4, 4, 0, 0]} name="Sessions">
-                    {PEAK_HOURS.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 4 ? "var(--accent)" : "rgba(255, 255, 255, 0.15)"} />
+                    {peakData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.sessions === maxPeakSessions && entry.sessions > 0 ? "var(--accent)" : "rgba(255, 255, 255, 0.15)"}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
@@ -204,13 +256,12 @@ export default function InteractiveAnalytics() {
             <span>Focus Activity Heatmap</span>
           </h3>
           <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-            Inspection matrix of focus completions completed over the last 14 days. Darker shades indicate heavy concentration slots.
+            Live matrix of focus session completions over the last 14 days.
           </p>
 
           {/* Density Heatmap Grid */}
           <div className="grid grid-cols-7 gap-2 my-2 text-center">
             {heatmap.map((cell, idx) => {
-              // density shade colors
               let shade = "bg-white/5 border border-white/5 text-[var(--text-muted)]";
               if (cell.count === 1) shade = "bg-purple-950/40 border border-purple-500/25 text-purple-300";
               else if (cell.count === 2) shade = "bg-purple-800/40 border border-purple-500/45 text-purple-200";

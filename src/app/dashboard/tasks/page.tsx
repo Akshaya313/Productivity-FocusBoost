@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedCheckbox from "@/components/animated-checkbox";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export default function SmartTasks() {
   const {
@@ -50,7 +51,51 @@ export default function SmartTasks() {
 
   // Edit task details state
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editPriority, setEditPriority] = useState<Task["priority"]>("medium");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editTagsInput, setEditTagsInput] = useState("");
+  const [editXpReward, setEditXpReward] = useState<number | "">(50);
   const [subtaskTitleInput, setSubtaskTitleInput] = useState("");
+
+  const handleOpenTaskDetails = (task: Task) => {
+    setActiveTask(task);
+    setIsEditingTask(false);
+    setEditTitle(task.title);
+    setEditDesc(task.description);
+    setEditPriority(task.priority);
+    setEditDueDate(task.dueDate);
+    setEditTagsInput(task.tags.join(", "));
+    setEditXpReward(task.xpReward ?? 50);
+  };
+
+  const handleSaveTaskEdits = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTask || !editTitle.trim()) return;
+
+    const tags = editTagsInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t !== "");
+
+    const updates: Partial<Task> = {
+      title: editTitle,
+      description: editDesc,
+      priority: editPriority,
+      dueDate: editDueDate,
+      tags: tags.length > 0 ? tags : activeTask.tags,
+      xpReward: editXpReward !== "" ? Number(editXpReward) : 50
+    };
+
+    updateTask(activeTask.id, updates);
+    
+    const fresh = { ...activeTask, ...updates };
+    setActiveTask(fresh);
+    setIsEditingTask(false);
+    showToast("Task Updated", `"${editTitle}" updated successfully.`, "success");
+  };
 
   const allTags = Array.from(new Set(tasks.flatMap((t) => t.tags)));
 
@@ -144,7 +189,7 @@ export default function SmartTasks() {
     const currentTask = useProductivityStore.getState().tasks.find((t) => t.id === task.id);
     if (currentTask) setActiveTask(currentTask);
 
-    alert("AI successfully generated custom subtasks breakdown for this milestone!");
+    showToast("AI Subtasks Generated", `Breakdown added to "${task.title}".`, "success");
   };
 
   return (
@@ -262,7 +307,7 @@ export default function SmartTasks() {
                     return (
                       <div
                         key={task.id}
-                        onClick={() => setActiveTask(task)}
+                        onClick={() => handleOpenTaskDetails(task)}
                         className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[var(--accent)]/30 transition-all cursor-pointer flex flex-col gap-3 group"
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -359,7 +404,7 @@ export default function SmartTasks() {
           {filteredTasks.map((task) => (
             <div
               key={task.id}
-              onClick={() => setActiveTask(task)}
+              onClick={() => handleOpenTaskDetails(task)}
               className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-between cursor-pointer group gap-4"
             >
               <div className="flex items-center gap-3">
@@ -539,23 +584,117 @@ export default function SmartTasks() {
                   <Layers size={12} className="text-[var(--accent)]" />
                   <span>Backlog Details</span>
                 </span>
-                <button
-                  onClick={() => setActiveTask(null)}
-                  className="text-xs text-[var(--text-muted)] hover:text-white cursor-pointer flex items-center gap-1"
-                >
-                  <X size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsEditingTask(!isEditingTask)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1",
+                      isEditingTask
+                        ? "bg-accent-gradient text-white border-white/20"
+                        : "bg-white/5 text-[var(--text-muted)] hover:text-white border-white/10"
+                    )}
+                  >
+                    <span>{isEditingTask ? "Cancel Edit" : "Edit Task"}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTask(null)}
+                    className="text-xs text-[var(--text-muted)] hover:text-white cursor-pointer flex items-center gap-1 p-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
 
-              {/* Task title & description */}
-              <div className="mt-5 flex flex-col gap-2">
-                <span className="text-lg font-black text-white leading-tight">
-                  {activeTask.title}
-                </span>
-                <p className="text-xs text-[var(--text-muted)] leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">
-                  {activeTask.description || "No description provided."}
-                </p>
-              </div>
+              {isEditingTask ? (
+                /* Edit Task Form */
+                <form onSubmit={handleSaveTaskEdits} className="mt-4 flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[var(--accent)]"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Description</label>
+                    <textarea
+                      rows={3}
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[var(--accent)] resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Priority</label>
+                      <select
+                        value={editPriority}
+                        onChange={(e) => setEditPriority(e.target.value as Task["priority"])}
+                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)] capitalize"
+                      >
+                        <option value="low" className="bg-gray-900">Low</option>
+                        <option value="medium" className="bg-gray-900">Medium</option>
+                        <option value="high" className="bg-gray-900">High</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Due Date</label>
+                      <input
+                        type="date"
+                        value={editDueDate}
+                        onChange={(e) => setEditDueDate(e.target.value)}
+                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Tags (comma separated)</label>
+                      <input
+                        type="text"
+                        value={editTagsInput}
+                        onChange={(e) => setEditTagsInput(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)]"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">XP Reward</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editXpReward}
+                        onChange={(e) => setEditXpReward(e.target.value ? Number(e.target.value) : "")}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--accent)] font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-accent-gradient text-white rounded-xl text-xs font-bold border border-white/10 shadow-lg cursor-pointer mt-2"
+                  >
+                    Save Changes
+                  </button>
+                </form>
+              ) : (
+                /* Task title & description view */
+                <div className="mt-5 flex flex-col gap-2">
+                  <span className="text-lg font-black text-white leading-tight">
+                    {activeTask.title}
+                  </span>
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">
+                    {activeTask.description || "No description provided."}
+                  </p>
+                </div>
+              )}
 
               {/* Quick actions status move options */}
               <div className="grid grid-cols-3 gap-3 mt-4 text-xs font-semibold">
@@ -635,10 +774,9 @@ export default function SmartTasks() {
               <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between">
                 <button
                   onClick={() => {
-                    if (confirm("Are you sure you want to delete this task?")) {
-                      deleteTask(activeTask.id);
+                    deleteTask(activeTask.id);
                       setActiveTask(null);
-                    }
+                      showToast("Task Deleted", "The task has been removed.", "info");
                   }}
                   className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 flex items-center gap-1.5 cursor-pointer transition-colors"
                 >

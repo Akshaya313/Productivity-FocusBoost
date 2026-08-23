@@ -6,6 +6,7 @@ import { useProductivityStore, ThemeType } from "@/store/useProductivityStore";
 import { Search, Compass, Palette, ShieldAlert, Sparkles, CheckSquare, Plus, RefreshCw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export default function CommandPalette() {
   const router = useRouter();
@@ -72,19 +73,17 @@ export default function CommandPalette() {
           subtasks: [],
           recurrence: "none"
         });
-        alert("Quick high-priority task created!");
+        showToast("Task Created", "Quick high-priority task added to Inbox.", "success");
       }
     },
     {
       id: "act-reset",
-      label: "Reset All Local Storage Settings & Data",
+      label: "Reset All Workspace Data (Preserving Username)",
       category: "System",
       icon: <RefreshCw size={16} />,
       action: () => {
-        if (confirm("Are you sure you want to restore default demo configurations? This will wipe your active database.")) {
-          resetAllData();
-          window.location.reload();
-        }
+        resetAllData();
+        showToast("Workspace Reset", "All data erased while preserving your username.", "info");
       }
     }
   ];

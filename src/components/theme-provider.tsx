@@ -3,13 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { useProductivityStore } from "@/store/useProductivityStore";
 import { subscribeToAuthState } from "@/lib/firebase";
-import { Sparkles, Trophy, Star } from "lucide-react";
+import { Sparkles, Trophy, Star, CheckCircle2, Info, AlertTriangle, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CommandPalette from "./command-palette";
 
 interface ToastMessage {
   id: string;
-  type: "level-up" | "achievement";
+  type: "level-up" | "achievement" | "success" | "info" | "warning" | "error";
   title: string;
   description: string;
 }
@@ -85,12 +85,26 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       setTimeout(() => removeToast(newToast.id), 5000);
     };
 
+    const handleAppToast = (e: any) => {
+      const { title, description, type } = e.detail;
+      const newToast: ToastMessage = {
+        id: `toast-${Date.now()}`,
+        type: type || "info",
+        title,
+        description
+      };
+      setToasts((prev) => [...prev, newToast]);
+      setTimeout(() => removeToast(newToast.id), 4000);
+    };
+
     window.addEventListener("level-up", handleLevelUp);
     window.addEventListener("achievement-unlocked", handleAchievement);
+    window.addEventListener("app-toast", handleAppToast);
 
     return () => {
       window.removeEventListener("level-up", handleLevelUp);
       window.removeEventListener("achievement-unlocked", handleAchievement);
+      window.removeEventListener("app-toast", handleAppToast);
     };
   }, [mounted]);
 
@@ -128,39 +142,36 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       <CommandPalette />
 
       {/* Dynamic Toast Alert Portal Overlay */}
-      <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full select-none pointer-events-none">
+      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full select-none pointer-events-none">
         <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              onClick={() => removeToast(toast.id)}
-              className="glass-panel p-4 rounded-xl border border-white/10 shadow-2xl flex items-start gap-3 pointer-events-auto cursor-pointer w-full"
-              style={{
-                background: toast.type === "level-up" 
-                  ? "rgba(168, 85, 247, 0.25)" 
-                  : "rgba(236, 72, 153, 0.25)"
-              }}
-            >
-              <div className="p-2 rounded-lg bg-black/25 text-white">
-                {toast.type === "level-up" ? (
-                  <Trophy size={18} className="text-yellow-400 animate-bounce" />
-                ) : (
-                  <Star size={18} className="text-pink-400 animate-spin" />
-                )}
-              </div>
-              <div className="flex-1">
-                <span className="text-sm font-bold text-white block">
-                  {toast.title}
-                </span>
-                <span className="text-xs text-white/80 block mt-0.5">
-                  {toast.description}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+          {toasts.map((toast) => {
+            const styles: Record<string, { bg: string; icon: React.ReactNode }> = {
+              "level-up":    { bg: "rgba(168,85,247,0.25)",  icon: <Trophy size={18} className="text-yellow-400 animate-bounce" /> },
+              "achievement": { bg: "rgba(236,72,153,0.25)",  icon: <Star size={18} className="text-pink-400 animate-spin" /> },
+              "success":     { bg: "rgba(34,197,94,0.18)",   icon: <CheckCircle2 size={18} className="text-emerald-400" /> },
+              "info":        { bg: "rgba(99,102,241,0.20)",  icon: <Info size={18} className="text-indigo-300" /> },
+              "warning":     { bg: "rgba(234,179,8,0.20)",   icon: <AlertTriangle size={18} className="text-yellow-400" /> },
+              "error":       { bg: "rgba(239,68,68,0.22)",   icon: <XCircle size={18} className="text-red-400" /> },
+            };
+            const s = styles[toast.type] ?? styles["info"];
+            return (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                onClick={() => removeToast(toast.id)}
+                className="glass-panel p-4 rounded-xl border border-white/10 shadow-2xl flex items-start gap-3 pointer-events-auto cursor-pointer w-full"
+                style={{ background: s.bg }}
+              >
+                <div className="p-2 rounded-lg bg-black/25 text-white shrink-0">{s.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-bold text-white block">{toast.title}</span>
+                  <span className="text-xs text-white/80 block mt-0.5 leading-snug">{toast.description}</span>
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
     </>

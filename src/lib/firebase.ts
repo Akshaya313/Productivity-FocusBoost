@@ -242,15 +242,24 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 
 /** Write or merge a user document under /users/{uid} */
 export async function saveUserData(uid: string, data: Record<string, unknown>): Promise<void> {
+  // Always cache locally under user specific key
+  if (typeof window !== "undefined") {
+    try {
+      const existing = localStorage.getItem(`focusboost_user_data_${uid}`);
+      const merged = existing ? { ...JSON.parse(existing), ...data } : data;
+      localStorage.setItem(`focusboost_user_data_${uid}`, JSON.stringify(merged));
+    } catch (e) {}
+  }
+
   if (isRealFirebaseConfigured && db) {
     try {
       const ref = doc(db, "users", uid);
-      await withTimeout(setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true }), 4000, undefined);
+      await withTimeout(setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true }), 1200, undefined);
     } catch (err) {
       console.warn("[Firebase] Firestore saveUserData timed out or failed:", err);
     }
   } else {
-    await simulateDelay(400);
+    await simulateDelay(200);
     const usersData = getLocalCollection("users");
     const existing = usersData[uid] || {};
     usersData[uid] = {
@@ -267,30 +276,30 @@ export async function getUserData(uid: string): Promise<any> {
   if (isRealFirebaseConfigured && db) {
     try {
       const ref = doc(db, "users", uid);
-      const snap = await withTimeout(getDoc(ref), 4000, null as any);
-      return snap && snap.exists() ? snap.data() : null;
+      const snap = await withTimeout(getDoc(ref), 1200, null as any);
+      if (snap && snap.exists()) {
+        return snap.data();
+      }
     } catch (err) {
       console.warn("[Firebase] Firestore getUserData timed out or failed:", err);
-      return null;
     }
-  } else {
-    await simulateDelay(400);
-    const usersData = getLocalCollection("users");
-    return usersData[uid] || null;
   }
+
+  // Fallback to local storage user cache if cloud reads fail/timeout or offline
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(`focusboost_user_data_${uid}`);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+  }
+
+  return null;
 }
 
 /** Update specific fields in a user document */
 export async function updateUserData(uid: string, data: Record<string, unknown>): Promise<void> {
-  if (isRealFirebaseConfigured && db) {
-    try {
-      const ref = doc(db, "users", uid);
-      await withTimeout(updateDoc(ref, { ...data, updatedAt: serverTimestamp() }), 4000, undefined);
-    } catch (err) {
-      console.warn("[Firebase] Firestore updateUserData timed out or failed:", err);
-    }
-  } else {
-    await saveUserData(uid, data);
-  }
+  await saveUserData(uid, data);
 }
 

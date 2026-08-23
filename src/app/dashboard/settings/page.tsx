@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export default function VisualSettings() {
   const {
@@ -89,25 +90,22 @@ export default function VisualSettings() {
   };
 
   const handleLoadDemoData = () => {
-    if (confirm("Load mock backlog? This will seed beautiful predefined guides, tasks, habits, and goals for immediate visual testing.")) {
-      loadDemoData();
-      setDemoLoadSuccess(true);
-      
-      // Update override inputs
-      setTimeout(() => {
-        const freshState = useProductivityStore.getState();
-        setCustomLvl(freshState.level);
-        setCustomXp(freshState.xp);
-        setDemoLoadSuccess(false);
-      }, 1000);
-    }
+    loadDemoData();
+    setDemoLoadSuccess(true);
+    showToast("Demo Data Seeded", "Predefined guides, tasks, and habits loaded.", "success");
+    
+    // Update override inputs
+    setTimeout(() => {
+      const freshState = useProductivityStore.getState();
+      setCustomLvl(freshState.level);
+      setCustomXp(freshState.xp);
+      setDemoLoadSuccess(false);
+    }, 1000);
   };
 
   const handleSystemReset = () => {
-    if (confirm("Restore all default configurations? This will wipe your active database backlog, notes, habits, streaks, and themes settings.")) {
-      resetAllData();
-      window.location.reload();
-    }
+    resetAllData();
+    showToast("Data Erased", "Workspace reset clean. Username preserved.", "info");
   };
 
   const themeOptions: { id: ThemeType; name: string; desc: string; colors: string[] }[] = [
